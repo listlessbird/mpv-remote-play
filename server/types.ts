@@ -4,6 +4,7 @@ export interface MPVInstance {
   status: "starting" | "running" | "error" | "stopped"
   process?: any
   lastSeen: Date
+  clientName?: string
 }
 
 export interface MPVCommand {

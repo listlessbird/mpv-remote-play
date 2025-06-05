@@ -6,11 +6,12 @@ Bun.serve({
     "/api/status": () => Response.json({ status: "OK", timestamp: new Date() }),
 
     "/api/instances": {
-      GET: () => {
-        const instances = mpvManager.getAllInstances().map((i) => ({
+      GET: async () => {
+        const instances = (await mpvManager.getAllInstances()).map((i) => ({
           id: i.id,
           status: i.status,
           lastSeen: i.lastSeen,
+          clientName: i.clientName,
         }))
         return Response.json(instances)
       },

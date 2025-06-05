@@ -303,22 +303,58 @@ class MPVManager {
     return await this.sendCommand(instanceId, mpvCommand)
   }
 
-  getInstance(instanceId: string): MPVInstance | undefined {
+  private async getClientName(instanceId: string): Promise<string> {
+    const instance = this.instances.get(instanceId)
+    if (!instance) {
+      throw new Error(`MPV instance ${instanceId} not found`)
+    }
+    const cmdResponse = await this.sendCommand(instanceId, {
+      command: ["client_name"],
+    })
+
+    console.log(`[MPVManager] Client cmd response:`, cmdResponse)
+
+    return (cmdResponse as MPVResponse)?.data as string
+  }
+  async getInstance(instanceId: string): Promise<MPVInstance | undefined> {
     console.log(`[MPVManager] Getting instance ${instanceId}`)
     const instance = this.instances.get(instanceId)
     if (instance) {
-      console.log(`[MPVManager] Found instance ${instanceId}:`, instance)
+      try {
+        const clientName = await this.getClientName(instanceId)
+        console.log(`[MPVManager] Found instance ${instanceId}:`, {
+          ...instance,
+          clientName,
+        })
+        return { ...instance, clientName }
+      } catch (error) {
+        console.log(`[MPVManager] Found instance ${instanceId}:`, instance)
+        return instance
+      }
     } else {
       console.log(`[MPVManager] Instance ${instanceId} not found`)
     }
     return instance
   }
 
-  getAllInstances(): MPVInstance[] {
+  async getAllInstances(): Promise<MPVInstance[]> {
     console.log(`[MPVManager] Getting all instances`)
     const instances = Array.from(this.instances.values())
-    console.log(`[MPVManager] Found ${instances.length} instances:`, instances)
-    return instances
+    const instancesWithClientNames = await Promise.all(
+      instances.map(async (instance) => {
+        try {
+          const clientName = await this.getClientName(instance.id)
+          return { ...instance, clientName }
+        } catch (error) {
+          return instance
+        }
+      })
+    )
+    console.log(
+      `[MPVManager] Found ${instances.length} instances:`,
+      instancesWithClientNames
+    )
+    return instancesWithClientNames
   }
 
   async stopInstance(id: string): Promise<void> {
