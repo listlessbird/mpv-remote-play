@@ -1,4 +1,5 @@
 import { mpvManager } from "./mpv-manager"
+import type { RemoteCommand } from "./types"
 
 Bun.serve({
   routes: {
@@ -33,14 +34,56 @@ Bun.serve({
         }
       },
     },
+    "/api/instances/:id": {
+      GET: (req) => {
+        const instance = mpvManager.getInstance(req.params.id)
+        if (!instance) {
+          return Response.json({ error: "Instance not found" }, { status: 404 })
+        }
+        return Response.json(instance)
+      },
+
+      DELETE: async (req) => {
+        try {
+          await mpvManager.stopInstance(req.params.id)
+          return Response.json({ message: "Instance stopped" })
+        } catch (error) {
+          return Response.json(
+            {
+              error: `Failed to stop instance: ${error}`,
+            },
+            { status: 500 }
+          )
+        }
+      },
+    },
+    "/api/instances/:id/command": {
+      POST: async (req) => {
+        try {
+          const command = (await req.json()) as RemoteCommand
+          const result = await mpvManager.executeRemoteCommand(
+            req.params.id,
+            command
+          )
+          return Response.json(result)
+        } catch (error) {
+          return Response.json(
+            {
+              error: `Failed to execute command: ${error}`,
+            },
+            { status: 500 }
+          )
+        }
+      },
+    },
   },
 
-  // (optional) fallback for unmatched routes:
-  // Required if Bun's version < 1.2.3
   fetch(req) {
     return new Response("Not Found", { status: 404 })
   },
 })
+
+console.log("MPV Remote Control Server running on http://localhost:3000")
 
 // fetch("http://localhost:3000/api/instances", {
 //   method: "POST",
@@ -49,7 +92,7 @@ Bun.serve({
 //   },
 //   body: JSON.stringify({
 //     mediaFile:
-//       "E:\\dls\\Alien.Romulus.2024.1080p.AMZN.WEB-DL.DDP5.1.Atmos.H.264-FLUX.mkv",
+//       "D:\\mpv-play\\sample.mp4",
 //   }),
 // })
 

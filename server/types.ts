@@ -17,3 +17,16 @@ export interface MPVResponse {
   data?: any
   request_id?: number
 }
+
+export interface RemoteCommand {
+  action:
+    | "play"
+    | "pause"
+    | "stop"
+    | "seek"
+    | "volume"
+    | "mute"
+    | "get_property"
+    | "set_property"
+  params?: Record<string, any>
+}

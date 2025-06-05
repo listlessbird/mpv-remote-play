@@ -1,4 +1,9 @@
-import type { MPVCommand, MPVInstance, MPVResponse } from "./types"
+import type {
+  MPVCommand,
+  MPVInstance,
+  MPVResponse,
+  RemoteCommand,
+} from "./types"
 
 class MPVManager {
   private instances = new Map<string, MPVInstance>()
@@ -238,6 +243,64 @@ class MPVManager {
         reject(new Error("Timeout waiting for response"))
       })
     })
+  }
+
+  async executeRemoteCommand(
+    instanceId: string,
+    remoteCmd: RemoteCommand
+  ): Promise<any> {
+    let mpvCommand: MPVCommand
+
+    switch (remoteCmd.action) {
+      case "play":
+        mpvCommand = { command: ["cycle", "pause"] }
+        break
+      case "pause":
+        mpvCommand = { command: ["cycle", "pause"] }
+        break
+      case "stop":
+        mpvCommand = { command: ["stop"] }
+        break
+      case "seek":
+        const seekTime = remoteCmd.params?.time || 0
+        const seekType = remoteCmd.params?.type || "absolute"
+        mpvCommand = { command: ["seek", seekTime, seekType] }
+        break
+      case "volume":
+        const volume = remoteCmd.params?.level
+        if (volume !== undefined) {
+          mpvCommand = { command: ["set_property", "volume", volume] }
+        } else {
+          mpvCommand = { command: ["get_property", "volume"] }
+        }
+        break
+
+      case "get_property":
+        const property = remoteCmd.params?.property
+        if (property) {
+          mpvCommand = { command: ["get_property", property] }
+        } else {
+          throw new Error("Property is required for get_property command")
+        }
+        break
+
+      case "set_property":
+        const prop = remoteCmd.params?.property
+        const value = remoteCmd.params?.value
+        if (prop && value !== undefined) {
+          mpvCommand = { command: ["set_property", prop, value] }
+        } else {
+          throw new Error(
+            "Property and value are required for set_property command"
+          )
+        }
+        break
+
+      default:
+        throw new Error(`Unknown Action: ${remoteCmd.action}`)
+    }
+
+    return await this.sendCommand(instanceId, mpvCommand)
   }
 
   getInstance(instanceId: string): MPVInstance | undefined {
