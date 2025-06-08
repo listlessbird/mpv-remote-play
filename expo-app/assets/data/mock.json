@@ -1,0 +1,251 @@
+[
+    {
+        "id": "1",
+        "src": "D:\\media\\movies\\action\\john_wick.mp4",
+        "title": "John Wick",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/fZPSd91yGE9fCcCe6OoQr6E3Bev.jpg",
+        "duration": 6120
+    },
+    {
+        "id": "2",
+        "src": "D:\\media\\movies\\sci-fi\\blade_runner_2049.mkv",
+        "title": "Blade Runner 2049",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg",
+        "duration": 9840
+    },
+    {
+        "id": "3",
+        "src": "D:\\media\\tv\\breaking_bad\\s01e01.mp4",
+        "title": "Breaking Bad - Pilot",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/ggFHVNu6YYI5L9pCfOacjizRGt.jpg",
+        "duration": 2880,
+        "playlist": "breaking_bad_s1"
+    },
+    {
+        "id": "4",
+        "src": "D:\\media\\tv\\breaking_bad\\s01e02.mp4",
+        "title": "Breaking Bad - Cat's in the Bag...",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/ggFHVNu6YYI5L9pCfOacjizRGt.jpg",
+        "duration": 2820,
+        "playlist": "breaking_bad_s1"
+    },
+    {
+        "id": "5",
+        "src": "D:\\media\\tv\\breaking_bad\\s01e03.mp4",
+        "title": "Breaking Bad - ...And the Bag's in the River",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/ggFHVNu6YYI5L9pCfOacjizRGt.jpg",
+        "duration": 2760,
+        "playlist": "breaking_bad_s1"
+    },
+    {
+        "id": "6",
+        "src": "D:\\media\\music\\videos\\daft_punk_one_more_time.mp4",
+        "title": "Daft Punk - One More Time",
+        "thumbnail": "https://i.ytimg.com/vi/FGBhQbmPwH8/maxresdefault.jpg",
+        "duration": 320
+    },
+    {
+        "id": "7",
+        "src": "D:\\media\\documentaries\\planet_earth_forests.mkv",
+        "title": "Planet Earth - Forests",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/1Ms2qvbrOTNQZNAuuRN0KM5VWq0.jpg",
+        "duration": 3000,
+        "playlist": "planet_earth"
+    },
+    {
+        "id": "8",
+        "src": "D:\\media\\documentaries\\planet_earth_mountains.mkv",
+        "title": "Planet Earth - Mountains",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/1Ms2qvbrOTNQZNAuuRN0KM5VWq0.jpg",
+        "duration": 3000,
+        "playlist": "planet_earth"
+    },
+    {
+        "id": "9",
+        "src": "D:\\media\\anime\\spirited_away.mkv",
+        "title": "Spirited Away",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg",
+        "duration": 7500
+    },
+    {
+        "id": "10",
+        "src": "D:\\media\\shorts\\funny_cats_compilation.mp4",
+        "title": "Funny Cats Compilation",
+        "thumbnail": "https://i.ytimg.com/vi/hFZFjoX2cGg/maxresdefault.jpg",
+        "duration": 600
+    },
+    {
+        "id": "11",
+        "src": "D:\\media\\tv\\stranger_things\\s01e01.mkv",
+        "title": "Stranger Things - The Vanishing of Will Byers",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg",
+        "duration": 2940,
+        "playlist": "stranger_things_s1"
+    },
+    {
+        "id": "12",
+        "src": "D:\\media\\tv\\stranger_things\\s01e02.mkv",
+        "title": "Stranger Things - The Weirdo on Maple Street",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg",
+        "duration": 3360,
+        "playlist": "stranger_things_s1"
+    },
+    {
+        "id": "13",
+        "src": "D:\\media\\movies\\comedy\\the_grand_budapest_hotel.mp4",
+        "title": "The Grand Budapest Hotel",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/eWdyYQreja6JGCzqHWXpWHDrrPo.jpg",
+        "duration": 6000
+    },
+    {
+        "id": "14",
+        "src": "D:\\media\\live_streams\\nature_cam_4k.m3u8",
+        "title": "4K Nature Live Stream",
+        "thumbnail": "https://images.unsplash.com/photo-1441974231531-c6227db76b6e",
+        "duration": 0
+    },
+    {
+        "id": "16",
+        "src": "D:\\media\\chinese_tv\\meteor_garden\\s01e01.mkv",
+        "title": "流星花园 - Episode 1",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/8kE7D4cdcC6Va8RUOKJpgWdNqJN.jpg",
+        "duration": 2700,
+        "playlist": "meteor_garden_2018"
+    },
+    {
+        "id": "17",
+        "src": "D:\\media\\chinese_tv\\meteor_garden\\s01e02.mkv",
+        "title": "流星花园 - Episode 2",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/8kE7D4cdcC6Va8RUOKJpgWdNqJN.jpg",
+        "duration": 2700,
+        "playlist": "meteor_garden_2018"
+    },
+    {
+        "id": "18",
+        "src": "D:\\media\\chinese_tv\\meteor_garden\\s01e03.mkv",
+        "title": "流星花园 - Episode 3",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/8kE7D4cdcC6Va8RUOKJpgWdNqJN.jpg",
+        "duration": 2700,
+        "playlist": "meteor_garden_2018"
+    },
+    {
+        "id": "22",
+        "src": "D:\\media\\chinese_tv\\love_020\\s01e01.mkv",
+        "title": "微微一笑很倾城 - Episode 1",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/xKvKiLdlt7jJpqOKHFXxb8aZqQr.jpg",
+        "duration": 2580,
+        "playlist": "love_020"
+    },
+    {
+        "id": "23",
+        "src": "D:\\media\\chinese_tv\\love_020\\s01e02.mkv",
+        "title": "微微一笑很倾城 - Episode 2",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/xKvKiLdlt7jJpqOKHFXxb8aZqQr.jpg",
+        "duration": 2580,
+        "playlist": "love_020"
+    },
+    {
+        "id": "24",
+        "src": "D:\\media\\chinese_tv\\love_020\\s01e03.mkv",
+        "title": "微微一笑很倾城 - Episode 3",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/xKvKiLdlt7jJpqOKHFXxb8aZqQr.jpg",
+        "duration": 2580,
+        "playlist": "love_020"
+    },
+    {
+        "id": "25",
+        "src": "D:\\media\\chinese_tv\\eternal_love\\s01e01.mkv",
+        "title": "三生三世十里桃花 - Episode 1",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/9Kt7CjYVcjASLIfzZbcaZWZKhNm.jpg",
+        "duration": 2700,
+        "playlist": "eternal_love"
+    },
+    {
+        "id": "26",
+        "src": "D:\\media\\chinese_tv\\eternal_love\\s01e02.mkv",
+        "title": "三生三世十里桃花 - Episode 2",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/9Kt7CjYVcjASLIfzZbcaZWZKhNm.jpg",
+        "duration": 2700,
+        "playlist": "eternal_love"
+    },
+    {
+        "id": "27",
+        "src": "D:\\media\\chinese_tv\\eternal_love\\s01e03.mkv",
+        "title": "三生三世十里桃花 - Episode 3",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/9Kt7CjYVcjASLIfzZbcaZWZKhNm.jpg",
+        "duration": 2700,
+        "playlist": "eternal_love"
+    },
+    {
+        "id": "28",
+        "src": "D:\\media\\chinese_tv\\nirvana_in_fire\\s01e01.mkv",
+        "title": "琅琊榜 - Episode 1",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/kQvzaHcjQnWJFxzNzVblKcnKRgY.jpg",
+        "duration": 2760,
+        "playlist": "nirvana_in_fire"
+    },
+    {
+        "id": "29",
+        "src": "D:\\media\\chinese_tv\\nirvana_in_fire\\s01e02.mkv",
+        "title": "琅琊榜 - Episode 2",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/kQvzaHcjQnWJFxzNzVblKcnKRgY.jpg",
+        "duration": 2760,
+        "playlist": "nirvana_in_fire"
+    },
+    {
+        "id": "30",
+        "src": "D:\\media\\chinese_tv\\nirvana_in_fire\\s01e03.mkv",
+        "title": "琅琊榜 - Episode 3",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/kQvzaHcjQnWJFxzNzVblKcnKRgY.jpg",
+        "duration": 2760,
+        "playlist": "nirvana_in_fire"
+    },
+    {
+        "id": "31",
+        "src": "D:\\media\\chinese_tv\\go_go_squid\\s01e01.mkv",
+        "title": "亲爱的，热爱的 - Episode 1",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/7Kn4DUOqRYjKlSuSznKWcAhXhfM.jpg",
+        "duration": 2520,
+        "playlist": "go_go_squid"
+    },
+    {
+        "id": "32",
+        "src": "D:\\media\\chinese_tv\\go_go_squid\\s01e02.mkv",
+        "title": "亲爱的，热爱的 - Episode 2",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/7Kn4DUOqRYjKlSuSznKWcAhXhfM.jpg",
+        "duration": 2520,
+        "playlist": "go_go_squid"
+    },
+    {
+        "id": "33",
+        "src": "D:\\media\\chinese_tv\\go_go_squid\\s01e03.mkv",
+        "title": "亲爱的，热爱的 - Episode 3",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/7Kn4DUOqRYjKlSuSznKWcAhXhfM.jpg",
+        "duration": 2520,
+        "playlist": "go_go_squid"
+    },
+    {
+        "id": "34",
+        "src": "D:\\media\\chinese_tv\\story_of_yanxi_palace\\s01e01.mkv",
+        "title": "延禧攻略 - Episode 1",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/mKvw1Ic9enfFlCPBNJGiejRPzTx.jpg",
+        "duration": 2640,
+        "playlist": "story_of_yanxi_palace"
+    },
+    {
+        "id": "35",
+        "src": "D:\\media\\chinese_tv\\story_of_yanxi_palace\\s01e02.mkv",
+        "title": "延禧攻略 - Episode 2",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/mKvw1Ic9enfFlCPBNJGiejRPzTx.jpg",
+        "duration": 2640,
+        "playlist": "story_of_yanxi_palace"
+    },
+    {
+        "id": "36",
+        "src": "D:\\media\\chinese_tv\\story_of_yanxi_palace\\s01e03.mkv",
+        "title": "延禧攻略 - Episode 3",
+        "thumbnail": "https://image.tmdb.org/t/p/w500/mKvw1Ic9enfFlCPBNJGiejRPzTx.jpg",
+        "duration": 2640,
+        "playlist": "story_of_yanxi_palace"
+    }
+]

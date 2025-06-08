@@ -1,7 +1,7 @@
 import { colors, fontSize } from "@/lib/constants/tokens"
 import { BlurView } from "expo-blur"
 import { Tabs } from "expo-router"
-import { StyleSheet } from "react-native"
+import { StyleSheet, Platform } from "react-native"
 import { FontAwesome } from "@expo/vector-icons"
 
 export default function TabLayout() {
@@ -9,6 +9,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: {
           fontSize: fontSize.xs,
           fontWeight: "500",
@@ -20,10 +21,24 @@ export default function TabLayout() {
           borderTopLeftRadius: 20,
           borderTopWidth: 0,
           paddingTop: 8,
+          backgroundColor:
+            Platform.OS === "android" ? "rgba(0, 0, 0, 0.9)" : "transparent",
         },
         tabBarBackground: () => (
+          // Platform.OS === "ios" ? (
+          //   <BlurView
+          //     intensity={95}
+          //     style={{
+          //       ...StyleSheet.absoluteFillObject,
+          //       overflow: "hidden",
+          //       borderTopRightRadius: 20,
+          //       borderTopLeftRadius: 20,
+          //     }}
+          //   />
+          // ) : null,
           <BlurView
-            intensity={95}
+            experimentalBlurMethod="dimezisBlurView"
+            intensity={50}
             style={{
               ...StyleSheet.absoluteFillObject,
               overflow: "hidden",
