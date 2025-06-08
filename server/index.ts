@@ -1,9 +1,16 @@
+import { MEDIA_SHARES } from "./config"
+import { mediaManager } from "./media-manager"
 import { mpvManager } from "./mpv-manager"
 import type { RemoteCommand } from "./types"
 
 Bun.serve({
   routes: {
-    "/api/status": () => Response.json({ status: "OK", timestamp: new Date() }),
+    "/api/status": () =>
+      Response.json({
+        status: "OK",
+        timestamp: new Date(),
+        stats: mediaManager.getStats(),
+      }),
 
     "/api/instances": {
       GET: async () => {
@@ -77,6 +84,56 @@ Bun.serve({
         }
       },
     },
+    "/api/shares": {
+      GET: async (req) => {
+        const shares = Object.keys(MEDIA_SHARES)
+        return Response.json({
+          shares,
+        })
+      },
+    },
+    "/api/shares/:share": {
+      GET: async (req: Request & { params: { share: string } }) => {
+        try {
+          const result = await mediaManager.getShareFiles(req.params.share)
+          return Response.json({ ...result, path: "/" })
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : "Unknown error"
+          return Response.json({ error: msg }, { status: 404 })
+        }
+      },
+    },
+    "/api/shares/:share/:path": async (
+      req: Request & { params: { share: string; path: string } }
+    ) => {
+      try {
+        const subPath = req.params.path || ""
+        const result = await mediaManager.getShareFiles(
+          req.params.share,
+          subPath
+        )
+        return Response.json({ ...result, path: `/${subPath}` })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error"
+        return Response.json({ error: message }, { status: 404 })
+      }
+    },
+
+    "/api/thumbnails/:id": (req: Request & { params: { id: string } }) => {
+      const thumbnailId = req.params.id
+      const thumbnailPath = mediaManager.getThumbnailPath(thumbnailId)
+
+      if (!thumbnailPath) {
+        return new Response("Thumbnail not found", { status: 404 })
+      }
+
+      return new Response(Bun.file(thumbnailPath), {
+        headers: {
+          "Content-Type": "image/jpeg",
+          "Cache-Control": "public, max-age=31536000",
+        },
+      })
+    },
   },
 
   fetch(req) {
@@ -84,7 +141,14 @@ Bun.serve({
   },
 })
 
+process.on("SIGINT", async () => {
+  console.log("SIGINT signal received. Shutting down...")
+  await mediaManager.killWatchersAndWorkers()
+  process.exit(0)
+})
+
 console.log("MPV Remote Control Server running on http://localhost:3000")
+console.log("Available shares: ", Object.keys(MEDIA_SHARES))
 
 // fetch("http://localhost:3000/api/instances", {
 //   method: "POST",

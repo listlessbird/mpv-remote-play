@@ -31,3 +31,47 @@ export interface RemoteCommand {
     | "set_property"
   params?: Record<string, any>
 }
+
+export interface Track {
+  id: string
+  src: string
+  title: string
+  thumbnail: string
+  duration: number
+  playlist?: string
+}
+
+export interface ShareCache {
+  files: Map<string, Track>
+  directories: Set<string>
+  lastScan: Date
+  isScanning: boolean
+}
+
+export interface CacheData {
+  files: [string, Track][]
+  directories: string[]
+  lastScan: string
+}
+
+export interface ThumbnailQueueItem {
+  filePath: string
+  fileId: string
+  filename: string
+  shareName: string
+}
+
+export interface ShareScanResult {
+  files: Track[]
+  directories: string[]
+  isScanning: boolean
+}
+
+export interface MediaStats {
+  shares: number
+  totalFiles: number
+  totalDirectories: number
+  thumbnailQueueSize: number
+  backgroundWorkers: number
+  watchers: number
+}
