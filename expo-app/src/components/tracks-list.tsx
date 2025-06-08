@@ -21,7 +21,9 @@ type Track = {
   playlist?: string
 }
 
-type TracksListProps = Partial<FlatListProps<Track>>
+type TracksListProps = Partial<FlatListProps<Track>> & {
+  tracks: Track[]
+}
 
 function ItemSeparator() {
   return (
@@ -34,9 +36,11 @@ function ItemSeparator() {
 export function TracksList({ ...props }: TracksListProps) {
   return (
     <FlatList
-      data={mock}
+      data={props.tracks}
+      contentContainerStyle={{ paddingTop: 10, paddingBottom: 128 }}
       renderItem={({ item }) => <TrackListItem track={item} />}
       ItemSeparatorComponent={ItemSeparator}
+      ListFooterComponent={ItemSeparator}
       {...props}
     />
   )
