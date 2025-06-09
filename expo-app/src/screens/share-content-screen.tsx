@@ -76,6 +76,8 @@ export function ShareContentScreen() {
   //   biome-ignore lint/style/noNonNullAssertion: contents is not null
   const data = filteredContents || contents!
 
+  console.log(data)
+
   return (
     <View style={defaultStyles.container}>
       <ScrollView

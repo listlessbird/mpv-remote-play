@@ -32,7 +32,10 @@ export function TracksList({ id, tracks, ...props }: TracksListProps) {
       contentContainerStyle={{ paddingTop: 10, paddingBottom: 128 }}
       renderItem={({ item }) => <TrackListItem track={item} />}
       ItemSeparatorComponent={ItemSeparator}
-      ListFooterComponent={ItemSeparator}
+      ListFooterComponent={() => {
+        if (tracks.length === 0) return null
+        return <ItemSeparator />
+      }}
       ListEmptyComponent={() => (
         <View style={utilStyles.emptyContainer}>
           <Text style={utilStyles.emptyContentText}>No tracks available</Text>
