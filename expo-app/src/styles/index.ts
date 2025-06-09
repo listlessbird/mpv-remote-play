@@ -24,6 +24,11 @@ const utilStyles = StyleSheet.create({
     textAlign: "center",
     marginTop: 20,
   },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 64,
+  },
 })
 
 export { defaultStyles, utilStyles }

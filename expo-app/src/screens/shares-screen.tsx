@@ -39,6 +39,20 @@ export function SharesScreen() {
     },
   })
 
+  const filteredShares = useMemo(() => {
+    if (!search) return shares?.shares || []
+
+    return (
+      shares?.shares.filter((share) =>
+        share.toLowerCase().includes(search.toLowerCase())
+      ) || []
+    )
+  }, [search, shares?.shares])
+
+  const handleSharePress = (shareName: string) => {
+    router.push(`/${shareName}`)
+  }
+
   if (isLoading) {
     return <LoadingSpinner message="Loading shares..." />
   }
@@ -52,20 +66,6 @@ export function SharesScreen() {
       />
     )
   }
-
-  const handleSharePress = (shareName: string) => {
-    router.push(`/share/${shareName}`)
-  }
-
-  const filteredShares = useMemo(() => {
-    if (!search) return shares?.shares || []
-
-    return (
-      shares?.shares.filter((share) =>
-        share.toLowerCase().includes(search.toLowerCase())
-      ) || []
-    )
-  }, [search, shares?.shares])
 
   return (
     <View style={defaultStyles.container}>
@@ -106,7 +106,7 @@ function SharesList({
   ...flatListProps
 }: {
   shares: string[]
-  onSharePress: () => void
+  onSharePress: (shareName: string) => void
   isRefetching: boolean
   refetch: () => void
 } & Partial<FlatListProps<string>>) {
@@ -123,7 +123,7 @@ function SharesList({
         />
       }
       renderItem={({ item }) => (
-        <ShareItem shareName={item} onPress={onSharePress} />
+        <ShareItem shareName={item} onPress={() => onSharePress(item)} />
       )}
       ItemSeparatorComponent={ListItemSeperator}
       ListFooterComponent={() => <ListItemSeperator />}
@@ -143,13 +143,13 @@ function ShareItem({
   ...touchableHighlightProps
 }: {
   shareName: string
-  onPress: (shareName: string) => void
+  onPress: () => void
 } & TouchableHighlightProps) {
   return (
     <TouchableHighlight
       activeOpacity={0.8}
       style={styles.shareItem}
-      onPress={() => onPress(shareName)}
+      onPress={onPress}
       {...touchableHighlightProps}
     >
       {/* <View style={styles.shareIcon}>

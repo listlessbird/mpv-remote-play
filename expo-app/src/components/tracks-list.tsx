@@ -1,27 +1,19 @@
 import {
   FlatList,
-  FlatListProps,
   StyleSheet,
   Text,
   TouchableHighlight,
   View,
 } from "react-native"
-import mock from "@assets/data/mock.json"
+import type { FlatListProps } from "react-native"
 import { Image } from "expo-image"
 import { unknownVideoImageUri } from "@/lib/constants/images"
 import { colors, fontSize } from "@/lib/constants/tokens"
 import { defaultStyles, utilStyles } from "@/styles"
-
-type Track = {
-  id: string
-  src: string
-  title: string
-  thumbnail: string
-  duration: number
-  playlist?: string
-}
+import type { Track } from "@/lib/api/api-types"
 
 type TracksListProps = Partial<FlatListProps<Track>> & {
+  id: string
   tracks: Track[]
 }
 
@@ -33,14 +25,19 @@ function ItemSeparator() {
   )
 }
 
-export function TracksList({ ...props }: TracksListProps) {
+export function TracksList({ id, tracks, ...props }: TracksListProps) {
   return (
     <FlatList
-      data={props.tracks}
+      data={tracks}
       contentContainerStyle={{ paddingTop: 10, paddingBottom: 128 }}
       renderItem={({ item }) => <TrackListItem track={item} />}
       ItemSeparatorComponent={ItemSeparator}
       ListFooterComponent={ItemSeparator}
+      ListEmptyComponent={() => (
+        <View style={utilStyles.emptyContainer}>
+          <Text style={utilStyles.emptyContentText}>No tracks available</Text>
+        </View>
+      )}
       {...props}
     />
   )
