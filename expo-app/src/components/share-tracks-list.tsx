@@ -133,14 +133,16 @@ function FileItem({ track, onPress }: { track: Track; onPress?: () => void }) {
   // console.log(track)
 
   const thumbnailUrl = useMemo(() => {
-    if (!track.thumbnail) return unknownVideoImageUri
+    // if (!track.thumbnail) return unknownVideoImageUri
 
-    if (track.thumbnail.includes("default")) {
-      return unknownVideoImageUri
-    }
+    // if (track.thumbnail.includes("default")) {
+    //   return unknownVideoImageUri
+    // }
 
-    return `${API_BASE_URL}${track.thumbnail}`
-  }, [track.thumbnail])
+    // TODO: fix thumbnail url in backend, for now lets just
+
+    return `${API_BASE_URL}/api/thumbnails/${track.id}`
+  }, [track.id])
 
   console.log(thumbnailUrl)
 
