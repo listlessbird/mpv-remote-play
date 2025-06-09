@@ -3,12 +3,18 @@ import { existsSync, mkdirSync } from "node:fs"
 import { readdir } from "node:fs/promises"
 import { THUMBNAILS_DIR } from "../config"
 import type { MediaFile, ThumbnailResult } from "../types"
-
+import PQueue from "p-queue"
 export class ThumbnailGenerator {
-  private queue = new Map<string, Promise<ThumbnailResult>>()
+  private queue: PQueue
   private isShuttingDown = false
+  private processingCache = new Map<string, Promise<ThumbnailResult>>()
 
   constructor() {
+    this.queue = new PQueue({
+      concurrency: 1,
+      timeout: 30 * 1000,
+      throwOnTimeout: true,
+    })
     this.ensureThumbnailsDir()
   }
 
@@ -23,20 +29,55 @@ export class ThumbnailGenerator {
       throw new Error("Cannot generate thumbnail: Server is shutting down")
     }
 
-    const promise = this.queue.get(mediaFile.id)
-    if (promise) {
-      return promise
+    const existing = this.processingCache.get(mediaFile.id)
+    if (existing) {
+      return existing
     }
 
     const newPromise = this.doGenerateThumbnail(mediaFile)
-    this.queue.set(mediaFile.id, newPromise)
+    this.processingCache.set(mediaFile.id, newPromise)
 
     try {
       const result = await newPromise
       return result
     } finally {
-      this.queue.delete(mediaFile.id)
+      this.processingCache.delete(mediaFile.id)
     }
+  }
+
+  queueThumbnail(mediaFile: MediaFile) {
+    if (this.isShuttingDown) return
+    const existing = this.processingCache.get(mediaFile.id)
+    if (existing) return
+
+    const promise = this.queue.add(() => this.doGenerateThumbnail(mediaFile), {
+      priority: 0,
+    })
+
+    this.processingCache.set(mediaFile.id, promise)
+    promise
+      .then((result) => {
+        if (result) {
+          if (result?.success) {
+            console.log(
+              `[ThumbnailService] Thumbnail generated for ${mediaFile.filename}`
+            )
+          } else {
+            console.error(
+              `[ThumbnailService] Failed to generate thumbnail for ${mediaFile.filename}: ${result.error}`
+            )
+          }
+        }
+      })
+      .catch((error) => {
+        console.error(
+          `[ThumbnailService] Background thumbnail generation failed for ${mediaFile.filename}:`,
+          error
+        )
+      })
+      .finally(() => {
+        this.processingCache.delete(mediaFile.id)
+      })
   }
 
   private async doGenerateThumbnail(
@@ -153,9 +194,27 @@ export class ThumbnailGenerator {
     return existsSync(thumbnailPath) ? thumbnailPath : null
   }
 
+  get queueSize(): number {
+    return this.queue.size + this.queue.pending
+  }
+
+  get isPaused(): boolean {
+    return this.queue.isPaused
+  }
+
+  pause(): void {
+    this.queue.pause()
+  }
+
+  start(): void {
+    this.queue.start()
+  }
+
   async shutdown() {
     this.isShuttingDown = true
-    await Promise.allSettled(this.queue.values())
+    this.queue.pause()
+    await this.queue.onIdle()
     this.queue.clear()
+    this.processingCache.clear()
   }
 }

@@ -3,20 +3,29 @@ import { mpvManager } from "./services/mpv-manager"
 import type { RemoteCommand } from "./types"
 import { MediaShare } from "./services/shares"
 
+/**
+ * TODO:
+ *   - fix thumbnail url in file response, it should be /api/thumbnails/:id.jpg
+ *      currently it is /api/thumbnails/default.jpg for all items
+ */
+
 const shareService = new MediaShare()
 await shareService.init()
 
 Bun.serve({
   routes: {
-    "/api/status": () =>
-      Response.json({
+    "/api/status": () => {
+      console.log("[ROUTE] GET /api/status")
+      return Response.json({
         status: "OK",
         timestamp: new Date(),
         stats: shareService.getStats(),
-      }),
+      })
+    },
 
     "/api/instances": {
       GET: async () => {
+        console.log("[ROUTE] GET /api/instances")
         const instances = (await mpvManager.getAllInstances()).map((i) => ({
           id: i.id,
           status: i.status,
@@ -27,9 +36,11 @@ Bun.serve({
       },
 
       POST: async (req) => {
+        console.log("[ROUTE] POST /api/instances")
         try {
           const body = await req.json()
           const mediaFile = body?.mediaFile
+          console.log("[ROUTE] Creating instance with media file:", mediaFile)
           const instanceId = await mpvManager.createInstance(mediaFile)
           return Response.json({
             instanceId,
@@ -47,6 +58,7 @@ Bun.serve({
     },
     "/api/instances/:id": {
       GET: (req) => {
+        console.log("[ROUTE] GET /api/instances/:id", req.params.id)
         const instance = mpvManager.getInstance(req.params.id)
         if (!instance) {
           return Response.json({ error: "Instance not found" }, { status: 404 })
@@ -55,6 +67,7 @@ Bun.serve({
       },
 
       DELETE: async (req) => {
+        console.log("[ROUTE] DELETE /api/instances/:id", req.params.id)
         try {
           await mpvManager.stopInstance(req.params.id)
           return Response.json({ message: "Instance stopped" })
@@ -70,8 +83,10 @@ Bun.serve({
     },
     "/api/instances/:id/command": {
       POST: async (req) => {
+        console.log("[ROUTE] POST /api/instances/:id/command", req.params.id)
         try {
           const command = (await req.json()) as RemoteCommand
+          console.log("[ROUTE] Executing command:", command)
           const result = await mpvManager.executeRemoteCommand(
             req.params.id,
             command
@@ -89,7 +104,9 @@ Bun.serve({
     },
     "/api/shares": {
       GET: async (req) => {
+        console.log("[ROUTE] GET /api/shares")
         const shares = Object.keys(MEDIA_SHARES)
+        console.log("[ROUTE] Available shares:", shares)
         return Response.json({
           shares,
         })
@@ -97,6 +114,7 @@ Bun.serve({
     },
     "/api/shares/:share": {
       GET: async (req: Request & { params: { share: string } }) => {
+        console.log("[ROUTE] GET /api/shares/:share", req.params.share)
         try {
           const result = await shareService.getShareFiles(req.params.share)
           return Response.json({ ...result, path: "/" })
@@ -109,6 +127,11 @@ Bun.serve({
     "/api/shares/:share/:path": async (
       req: Request & { params: { share: string; path: string } }
     ) => {
+      console.log(
+        "[ROUTE] GET /api/shares/:share/:path",
+        req.params.share,
+        req.params.path
+      )
       try {
         const subPath = req.params.path || ""
         const result = await shareService.getShareFiles(
@@ -123,7 +146,12 @@ Bun.serve({
     },
 
     "/api/thumbnails/:id": (req: Request & { params: { id: string } }) => {
-      const thumbnailId = req.params.id
+      console.log("[ROUTE] GET /api/thumbnails/:id", req.params.id)
+      let thumbnailId = req.params.id
+      if (thumbnailId.endsWith(".jpg")) {
+        thumbnailId = thumbnailId.replace(".jpg", "")
+        console.log("[ROUTE] GET /api/thumbnails/:id", thumbnailId)
+      }
       const thumbnailPath = shareService.getThumbnailPath(thumbnailId)
 
       if (!thumbnailPath) {
@@ -140,6 +168,7 @@ Bun.serve({
   },
 
   fetch(req) {
+    console.log("[ROUTE] Not Found:", req.url)
     return new Response("Not Found", { status: 404 })
   },
 })

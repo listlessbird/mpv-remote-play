@@ -8,6 +8,7 @@ export class MediaShare {
   private scanner: Scanner
   private thumbnailGenerator: ThumbnailGenerator
   private cache: MediaCache
+  private processedFiles = new Set<string>()
 
   constructor() {
     this.scanner = new Scanner(
@@ -66,28 +67,17 @@ export class MediaShare {
   }
 
   private async handleFileFound(file: MediaFile) {
+    if (this.processedFiles.has(file.id)) {
+      return
+    }
+
+    this.processedFiles.add(file.id)
+
     console.log(`[MediaShare] File found: ${file.path}`)
 
     this.cache.addOrUpdateTrack(file)
     await this.cache.save()
-
-    setImmediate(async () => {
-      try {
-        const duration = await this.thumbnailGenerator.getMediaDuration(
-          file.path
-        )
-        const thumb = await this.thumbnailGenerator.generateThumbnail(file)
-
-        if (thumb.success) {
-          this.cache.addOrUpdateTrack(file, thumb.url, duration)
-          await this.cache.save()
-        }
-      } catch (error) {
-        console.error(
-          `[MediaShare] Error processing file ${file.filename}: ${error}`
-        )
-      }
-    })
+    this.thumbnailGenerator.queueThumbnail(file)
   }
 
   private async handleFileRemoved(filePath: string) {
@@ -105,10 +95,20 @@ export class MediaShare {
       console.log(`[MediaShare] Starting background scan for ${shareName}`)
       const result = await this.scanner.scanShare(shareName)
 
+      let processedCount = 0
       for (const file of result.files) {
         await this.handleFileFound(file)
+        processedCount++
+
+        if (processedCount % 10 === 0) {
+          console.log(
+            `[MediaShare] Background scan for share "${shareName}" processed ${processedCount}/${result.files.length} files`
+          )
+        }
       }
-      console.log(`[MediaShare] Background scan for ${shareName} completed`)
+      console.log(
+        `[MediaShare] Background scan for share "${shareName}" completed. Processed ${processedCount} files`
+      )
     } catch (error) {
       console.error(
         `[MediaShare] Error during background scan for ${shareName}: ${error}`
