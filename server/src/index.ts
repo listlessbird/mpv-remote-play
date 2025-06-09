@@ -1,7 +1,10 @@
 import { MEDIA_SHARES } from "./config"
-import { mediaManager } from "./media-manager"
-import { mpvManager } from "./mpv-manager"
+import { mpvManager } from "./services/mpv-manager"
 import type { RemoteCommand } from "./types"
+import { MediaShare } from "./services/shares"
+
+const shareService = new MediaShare()
+await shareService.init()
 
 Bun.serve({
   routes: {
@@ -9,7 +12,7 @@ Bun.serve({
       Response.json({
         status: "OK",
         timestamp: new Date(),
-        stats: mediaManager.getStats(),
+        stats: shareService.getStats(),
       }),
 
     "/api/instances": {
@@ -95,7 +98,7 @@ Bun.serve({
     "/api/shares/:share": {
       GET: async (req: Request & { params: { share: string } }) => {
         try {
-          const result = await mediaManager.getShareFiles(req.params.share)
+          const result = await shareService.getShareFiles(req.params.share)
           return Response.json({ ...result, path: "/" })
         } catch (error) {
           const msg = error instanceof Error ? error.message : "Unknown error"
@@ -108,7 +111,7 @@ Bun.serve({
     ) => {
       try {
         const subPath = req.params.path || ""
-        const result = await mediaManager.getShareFiles(
+        const result = await shareService.getShareFiles(
           req.params.share,
           subPath
         )
@@ -121,7 +124,7 @@ Bun.serve({
 
     "/api/thumbnails/:id": (req: Request & { params: { id: string } }) => {
       const thumbnailId = req.params.id
-      const thumbnailPath = mediaManager.getThumbnailPath(thumbnailId)
+      const thumbnailPath = shareService.getThumbnailPath(thumbnailId)
 
       if (!thumbnailPath) {
         return new Response("Thumbnail not found", { status: 404 })
@@ -143,7 +146,7 @@ Bun.serve({
 
 process.on("SIGINT", async () => {
   console.log("SIGINT signal received. Shutting down...")
-  await mediaManager.killWatchersAndWorkers()
+  await shareService.shutdown()
   process.exit(0)
 })
 

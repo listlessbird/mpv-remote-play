@@ -3,7 +3,7 @@ import type {
   MPVInstance,
   MPVResponse,
   RemoteCommand,
-} from "./types"
+} from "../types"
 
 class MPVManager {
   private instances = new Map<string, MPVInstance>()
@@ -38,7 +38,7 @@ class MPVManager {
         "--player-operation-mode=pseudo-gui",
         "--idle=yes",
         "--force-window=yes",
-        "--input-ipc-server=" + pipeAddress,
+        `--input-ipc-server=${pipeAddress}`,
       ]
 
       if (mediaFile) {
@@ -51,9 +51,9 @@ class MPVManager {
       //check if mpv actually exists or if the cmdline fails to run `mpv`
       try {
         const mpvVersion = await $`mpv --version`.text()
-        console.log(`[MPVManager] MPV version:`, mpvVersion)
+        console.log(`[MPVManager] MPV version: ${mpvVersion}`)
       } catch (error) {
-        console.error(`[MPVManager] MPV not found:`, error)
+        console.error(`[MPVManager] MPV not found: ${error}`)
         throw new Error("MPV binary not found")
       }
       console.log(`[MPVManager] Running MPV with args: ${args.join(" ")}`)

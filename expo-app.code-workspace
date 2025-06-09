@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "expo-app"
+		},
+		{
+			"path": "samples"
+		},
+		{
+			"path": "server"
+		}
+	],
+	"settings": {}
+}

@@ -45,7 +45,6 @@ export interface ShareCache {
   files: Map<string, Track>
   directories: Set<string>
   lastScan: Date
-  isScanning: boolean
 }
 
 export interface CacheData {
@@ -74,4 +73,27 @@ export interface MediaStats {
   thumbnailQueueSize: number
   backgroundWorkers: number
   watchers: number
+}
+
+export interface MediaFile {
+  id: string
+  path: string
+  filename: string
+  shareName: string
+  size: number
+  modifiedAt: Date
+}
+
+export interface ScanResult {
+  files: MediaFile[]
+  directories: string[]
+  isScanning: boolean
+}
+
+export interface ThumbnailResult {
+  success: boolean
+  fileId: string
+  path?: string
+  url?: string
+  error?: string
 }
