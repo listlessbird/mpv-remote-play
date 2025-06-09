@@ -12,12 +12,21 @@ import { ScrollView, View } from "react-native"
 export function ShareContentScreen() {
   const { shareName, path } = useLocalSearchParams<{
     shareName: string
-    path: string
+    path: string | string[]
   }>()
 
   const router = useRouter()
 
-  const decodedPath = path ? decodeURIComponent(path) : undefined
+  const decodedPath = useMemo(() => {
+    if (!path) return undefined
+
+    if (Array.isArray(path)) {
+      return path.map((seg) => decodeURIComponent(seg)).join("/")
+    }
+    return decodeURIComponent(path)
+  }, [path])
+
+  console.log({ decodedPath })
 
   const {
     data: contents,
@@ -50,7 +59,7 @@ export function ShareContentScreen() {
 
   const handleDirectoryPress = (dirName: string) => {
     const newPath = decodedPath ? `${decodedPath}/${dirName}` : dirName
-    router.push(`/[shareName]/${encodeURIComponent(newPath)}`)
+    router.push(`/${shareName}/${encodeURIComponent(newPath)}`)
   }
 
   //   TODO: handleFileClick

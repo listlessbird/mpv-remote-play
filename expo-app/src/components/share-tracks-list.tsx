@@ -13,6 +13,8 @@ import { colors, fontSize, screenPadding } from "@/lib/constants/tokens"
 import { defaultStyles, utilStyles } from "@/styles"
 import type { ShareContents, Track } from "@/lib/api/api-types"
 import { AntDesign, FontAwesome } from "@expo/vector-icons"
+import { useMemo } from "react"
+import { API_BASE_URL } from "@/lib/constants/constants"
 
 type ContentItem =
   | { type: "directory"; name: string }
@@ -128,7 +130,19 @@ function DirectoryItem({
 
 function FileItem({ track, onPress }: { track: Track; onPress?: () => void }) {
   const isActive = false
-  console.log(track)
+  // console.log(track)
+
+  const thumbnailUrl = useMemo(() => {
+    if (!track.thumbnail) return unknownVideoImageUri
+
+    if (track.thumbnail.includes("default")) {
+      return unknownVideoImageUri
+    }
+
+    return `${API_BASE_URL}${track.thumbnail}`
+  }, [track.thumbnail])
+
+  console.log(thumbnailUrl)
 
   return (
     <TouchableHighlight
@@ -141,7 +155,7 @@ function FileItem({ track, onPress }: { track: Track; onPress?: () => void }) {
         <View>
           <Image
             source={{
-              uri: track.thumbnail ?? unknownVideoImageUri,
+              uri: thumbnailUrl,
             }}
             style={{
               ...styles.trackArtworkImage,

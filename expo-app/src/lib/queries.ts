@@ -28,6 +28,7 @@ export function useShares() {
 }
 
 export function useShareContents(shareName: string, path?: string) {
+  console.log("useShareContents", shareName, path)
   return useQuery({
     queryKey: queryKeys.shareContents(shareName, path),
     queryFn: () => apiClient.getShareContents(shareName, path),

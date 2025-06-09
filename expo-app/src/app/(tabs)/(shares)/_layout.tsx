@@ -28,6 +28,17 @@ export default function HomeLayout() {
             headerTintColor: colors.primary,
           }}
         />
+        <Stack.Screen
+          name="[shareName]/[...path]"
+          options={{
+            headerTitle: "",
+            headerBackVisible: true,
+            headerStyle: {
+              backgroundColor: colors.background,
+            },
+            headerTintColor: colors.primary,
+          }}
+        />
       </Stack>
     </View>
     // <SharesScreen />

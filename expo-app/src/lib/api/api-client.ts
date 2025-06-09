@@ -1,10 +1,11 @@
 import type { ServerStatus, Share, ShareContents } from "@/lib/api/api-types"
-import { fetch, FetchRequestInit } from "expo/fetch"
+import { API_BASE_URL } from "@/lib/constants/constants"
+import { fetch, type FetchRequestInit } from "expo/fetch"
 
 class ApiClient {
   private baseUrl: string
 
-  constructor(baseUrl = "http://10.0.2.2:3000") {
+  constructor(baseUrl = API_BASE_URL) {
     this.baseUrl = baseUrl
   }
 
