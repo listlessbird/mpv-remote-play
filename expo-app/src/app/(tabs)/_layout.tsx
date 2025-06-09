@@ -25,17 +25,6 @@ export default function TabLayout() {
             Platform.OS === "android" ? "rgba(0, 0, 0, 0.9)" : "transparent",
         },
         tabBarBackground: () => (
-          // Platform.OS === "ios" ? (
-          //   <BlurView
-          //     intensity={95}
-          //     style={{
-          //       ...StyleSheet.absoluteFillObject,
-          //       overflow: "hidden",
-          //       borderTopRightRadius: 20,
-          //       borderTopLeftRadius: 20,
-          //     }}
-          //   />
-          // ) : null,
           <BlurView
             experimentalBlurMethod="dimezisBlurView"
             intensity={50}
@@ -52,9 +41,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="(home)"
         options={{
-          title: "Home",
+          title: "Shares",
           tabBarIcon: ({ color, size }) => (
-            <FontAwesome name="home" size={size} color={color} />
+            <FontAwesome name="folder" size={size} color={color} />
           ),
         }}
       />

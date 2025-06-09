@@ -18,6 +18,12 @@ const utilStyles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     opacity: 0.3,
   },
+  emptyContentText: {
+    ...defaultStyles.text,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: 20,
+  },
 })
 
 export { defaultStyles, utilStyles }
