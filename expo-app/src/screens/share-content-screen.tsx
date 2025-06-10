@@ -2,6 +2,7 @@ import { QueryError } from "@/components/error-boundary"
 import { ShareTracksList } from "@/components/share-tracks-list"
 import { TracksListSkeleton } from "@/components/skeletons"
 import { useNavSearch } from "@/hooks/use-nav-search"
+import type { Track } from "@/lib/api/api-types"
 import { screenPadding } from "@/lib/constants/tokens"
 import { useShareContents } from "@/lib/queries"
 import { defaultStyles } from "@/styles"
@@ -64,6 +65,10 @@ export function ShareContentScreen() {
 
   //   TODO: handleFileClick
 
+  const handleFilePress = (file: Track) => {
+    console.log(file)
+  }
+
   if (isLoading) {
     return (
       <View style={defaultStyles.container}>
@@ -96,7 +101,7 @@ export function ShareContentScreen() {
         <ShareTracksList
           contents={data}
           onDirectoryPress={handleDirectoryPress}
-          onFilePress={null}
+          onFilePress={handleFilePress}
         />
       </ScrollView>
     </View>

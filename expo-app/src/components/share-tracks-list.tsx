@@ -12,7 +12,7 @@ import { unknownVideoImageUri } from "@/lib/constants/images"
 import { colors, fontSize, screenPadding } from "@/lib/constants/tokens"
 import { defaultStyles, utilStyles } from "@/styles"
 import type { ShareContents, Track } from "@/lib/api/api-types"
-import { AntDesign, FontAwesome } from "@expo/vector-icons"
+import { AntDesign, Entypo, FontAwesome } from "@expo/vector-icons"
 import { useMemo } from "react"
 import { API_BASE_URL } from "@/lib/constants/constants"
 
@@ -97,32 +97,21 @@ function DirectoryItem({
       onPress={onPress}
       {...touchableHighlightProps}
     >
-      <View style={styles.contentItem}>
-        <View>
-          <View style={styles.directoryIcon}>
-            <FontAwesome name="folder" size={24} color={colors.primary} />
-          </View>
+      <View style={styles.directoryItemContainer}>
+        <View style={styles.directoryIcon}>
+          <FontAwesome name="folder" size={24} color={colors.primary} />
         </View>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            width: "100%",
-          }}
-        >
+        <View style={styles.directoryTextContainer}>
           <Text style={styles.directoryName} numberOfLines={1}>
             {directoryName}
           </Text>
-          <AntDesign
-            name="right"
-            size={16}
-            color={colors.icon}
-            style={{
-              opacity: 0.5,
-            }}
-          />
         </View>
+        <AntDesign
+          name="right"
+          size={16}
+          color={colors.icon}
+          style={styles.directoryArrow}
+        />
       </View>
     </TouchableHighlight>
   )
@@ -130,17 +119,8 @@ function DirectoryItem({
 
 function FileItem({ track, onPress }: { track: Track; onPress?: () => void }) {
   const isActive = false
-  // console.log(track)
 
   const thumbnailUrl = useMemo(() => {
-    // if (!track.thumbnail) return unknownVideoImageUri
-
-    // if (track.thumbnail.includes("default")) {
-    //   return unknownVideoImageUri
-    // }
-
-    // TODO: fix thumbnail url in backend, for now lets just
-
     return `${API_BASE_URL}/api/thumbnails/${track.id}`
   }, [track.id])
 
@@ -154,20 +134,18 @@ function FileItem({ track, onPress }: { track: Track; onPress?: () => void }) {
       disabled={!onPress}
     >
       <View style={styles.fileItemContainer}>
-        <View>
-          <Image
-            source={{
-              uri: thumbnailUrl,
-            }}
-            style={{
-              ...styles.trackArtworkImage,
-              opacity: isActive ? 0.6 : 1,
-            }}
-          />
-        </View>
-        <View style={{ width: "100%" }}>
+        <Image
+          source={{
+            uri: thumbnailUrl,
+          }}
+          style={{
+            ...styles.trackArtworkImage,
+            opacity: isActive ? 0.6 : 1,
+          }}
+        />
+        <View style={styles.trackTextContainer}>
           <Text
-            numberOfLines={1}
+            numberOfLines={2}
             style={{
               ...styles.trackTitleText,
               color: isActive ? colors.primary : colors.text,
@@ -181,6 +159,7 @@ function FileItem({ track, onPress }: { track: Track; onPress?: () => void }) {
             </Text>
           )}
         </View>
+        <Entypo name="dots-three-horizontal" size={18} color={colors.icon} />
       </View>
     </TouchableHighlight>
   )
@@ -198,10 +177,13 @@ const styles = StyleSheet.create({
     paddingBottom: 128,
   },
   contentItem: {
+    paddingHorizontal: screenPadding.x,
+  },
+  directoryItemContainer: {
     flexDirection: "row",
     alignItems: "center",
-    columnGap: 14,
-    paddingRight: 80,
+    paddingVertical: 12,
+    minHeight: 60,
   },
   directoryIcon: {
     width: 48,
@@ -210,30 +192,40 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(252,60,68,0.1)",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
+    marginRight: 12,
+  },
+  directoryTextContainer: {
+    flex: 1,
+    marginRight: 12,
   },
   directoryName: {
     ...defaultStyles.text,
     fontSize: 17,
     fontWeight: "600",
-    maxWidth: "90%",
+  },
+  directoryArrow: {
+    opacity: 0.5,
   },
   fileItemContainer: {
     flexDirection: "row",
-    columnGap: 14,
     alignItems: "center",
-    paddingRight: 20,
+    paddingVertical: 12,
+    minHeight: 60,
   },
   trackArtworkImage: {
     borderRadius: 8,
     width: 50,
     height: 50,
+    marginRight: 12,
+  },
+  trackTextContainer: {
+    flex: 1,
+    marginRight: 12,
   },
   trackTitleText: {
     ...defaultStyles.text,
     fontSize: fontSize.sm,
     fontWeight: "600",
-    maxWidth: "90%",
   },
   trackDurationText: {
     ...defaultStyles.text,

@@ -1,0 +1,23 @@
+From 4186e76edd42315c98294a1bbfea78f04fc7438b Mon Sep 17 00:00:00 2001
+From: stucodegreen <m.kuznecovas@gmail.com>
+Date: Sun, 13 Apr 2025 23:03:35 +0300
+Subject: [PATCH] fix(android): correct onBind method signature in
+ MusicService.kt
+
+---
+ .../java/com/doublesymmetry/trackplayer/service/MusicService.kt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt b/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
+index 9d6d869ef..afa6b0f33 100644
+--- a/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
++++ b/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
+@@ -761,7 +761,7 @@ class MusicService : HeadlessJsTaskService() {
+     }
+ 
+     @MainThread
+-    override fun onBind(intent: Intent?): IBinder {
++    override fun onBind(intent: Intent): IBinder {
+         return binder
+     }
+ 

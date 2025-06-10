@@ -10,6 +10,7 @@ import { Image } from "expo-image"
 import { unknownVideoImageUri } from "@/lib/constants/images"
 import { colors, fontSize } from "@/lib/constants/tokens"
 import { defaultStyles, utilStyles } from "@/styles"
+import { Entypo } from "@expo/vector-icons"
 import type { Track } from "@/lib/api/api-types"
 
 type TracksListProps = Partial<FlatListProps<Track>> & {
@@ -67,21 +68,25 @@ function TrackListItem({ track }: TrackListItemProps) {
             }}
           />
         </View>
-        <View style={{ width: "100%" }}>
-          <Text
-            numberOfLines={1}
-            style={{
-              ...styles.trackTitleText,
-              color: isActive ? colors.primary : colors.text,
-            }}
-          >
-            {track.title}
-          </Text>
-          {track.duration > 0 && (
-            <Text numberOfLines={1} style={styles.trackDurationText}>
-              {formatDuration(track.duration)}
+        <View>
+          <View style={{ width: "100%" }}>
+            <Text
+              numberOfLines={1}
+              style={{
+                ...styles.trackTitleText,
+                color: isActive ? colors.primary : colors.text,
+              }}
+            >
+              {track.title}
             </Text>
-          )}
+            {track.duration > 0 && (
+              <Text numberOfLines={1} style={styles.trackDurationText}>
+                {formatDuration(track.duration)}
+              </Text>
+            )}
+          </View>
+
+          <Entypo name="dots-three-horizontal" size={18} color={colors.icon} />
         </View>
       </View>
     </TouchableHighlight>
