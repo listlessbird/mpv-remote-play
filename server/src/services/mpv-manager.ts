@@ -48,7 +48,6 @@ class MPVManager {
 
       const { $ } = await import("bun")
 
-      //check if mpv actually exists or if the cmdline fails to run `mpv`
       try {
         const mpvVersion = await $`mpv --version`.text()
         console.log(`[MPVManager] MPV version: ${mpvVersion}`)
@@ -57,15 +56,18 @@ class MPVManager {
         throw new Error("MPV binary not found")
       }
       console.log(`[MPVManager] Running MPV with args: ${args.join(" ")}`)
-      const processPromise = $`mpv ${args}`.nothrow()
+
+      const process = Bun.spawn(["mpv", ...args], {
+        stdio: ["ignore", "pipe", "pipe"],
+      })
       console.log(`[MPVManager] MPV process started for instance ${id}`)
 
-      instance.process = processPromise
+      instance.process = process
 
       setImmediate(async () => {
         try {
           const result = await Promise.race([
-            processPromise,
+            process.exited,
             new Promise((_, rej) =>
               setTimeout(() => rej(new Error("timeout")), 100)
             ),
@@ -78,7 +80,7 @@ class MPVManager {
       }, 50)
 
       await new Promise((resolve) => setTimeout(resolve, 2000))
-      console.log(`[MPVManager] Waited 2 seconds for MPV to initialize`)
+      console.log("[MPVManager] Waited 2 seconds for MPV to initialize")
 
       try {
         await this.sendCommand(
@@ -99,29 +101,29 @@ class MPVManager {
 
       try {
         const quickCheck = await Promise.race([
-          processPromise,
+          process.exited,
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error("still running")), 100)
           ),
         ])
-        console.log(`[MPVManager] Process already completed:`, quickCheck)
+        console.log("[MPVManager] Process already completed:", quickCheck)
       } catch (checkError) {
         if (
           checkError instanceof Error &&
           checkError.message === "still running"
         ) {
-          console.log(`[MPVManager] Process appears to still be running`)
+          console.log("[MPVManager] Process appears to still be running")
         } else {
-          console.error(`[MPVManager] Process check failed:`, checkError)
+          console.error("[MPVManager] Process check failed:", checkError)
         }
       }
 
-      processPromise
-        .then((result) => {
-          console.log(`[MPVManager] MPV process result:`, result)
-          if (result.exitCode !== 0) {
+      process.exited
+        .then((exitCode) => {
+          console.log("[MPVManager] MPV process exit code:", exitCode)
+          if (exitCode !== 0) {
             console.warn(
-              `[MPVManager] MPV instance ${id} exited with code ${result.exitCode}`
+              `[MPVManager] MPV instance ${id} exited with code ${exitCode}`
             )
           } else {
             console.log(`[MPVManager] MPV instance ${id} exited normally`)
@@ -138,7 +140,7 @@ class MPVManager {
 
       setTimeout(() => this.cleanDeadInstances(), 5000)
       console.log(
-        `[MPVManager] Scheduled cleanup of dead instances in 5 seconds`
+        "[MPVManager] Scheduled cleanup of dead instances in 5 seconds"
       )
 
       return id
@@ -175,7 +177,7 @@ class MPVManager {
       )
     }
 
-    const net = await import("net")
+    const net = await import("node:net")
     const pipeAddress = `\\\\.\\pipe\\${instance.pipeName}`
     console.log(`[MPVManager] Connecting to pipe: ${pipeAddress}`)
 
@@ -183,7 +185,7 @@ class MPVManager {
       const socket = new net.Socket()
       const requestId = this.requestCount++
       const cmdWithId = { ...cmd, request_id: requestId }
-      const cmdJson = JSON.stringify(cmdWithId) + "\n"
+      const cmdJson = `${JSON.stringify(cmdWithId)}\n`
       console.log(
         `[MPVManager] Sending command with request ID ${requestId}: ${cmdJson.trim()}`
       )
@@ -208,7 +210,7 @@ class MPVManager {
           if (line.trim()) {
             try {
               const res: MPVResponse = JSON.parse(line)
-              console.log(`[MPVManager] Parsed response:`, res)
+              console.log("[MPVManager] Parsed response:", res)
 
               if (res.request_id === requestId) {
                 console.log(
@@ -248,7 +250,7 @@ class MPVManager {
   async executeRemoteCommand(
     instanceId: string,
     remoteCmd: RemoteCommand
-  ): Promise<any> {
+  ): Promise<MPVResponse> {
     let mpvCommand: MPVCommand
 
     switch (remoteCmd.action) {
@@ -261,12 +263,13 @@ class MPVManager {
       case "stop":
         mpvCommand = { command: ["stop"] }
         break
-      case "seek":
+      case "seek": {
         const seekTime = remoteCmd.params?.time || 0
         const seekType = remoteCmd.params?.type || "absolute"
         mpvCommand = { command: ["seek", seekTime, seekType] }
         break
-      case "volume":
+      }
+      case "volume": {
         const volume = remoteCmd.params?.level
         if (volume !== undefined) {
           mpvCommand = { command: ["set_property", "volume", volume] }
@@ -274,8 +277,9 @@ class MPVManager {
           mpvCommand = { command: ["get_property", "volume"] }
         }
         break
+      }
 
-      case "get_property":
+      case "get_property": {
         const property = remoteCmd.params?.property
         if (property) {
           mpvCommand = { command: ["get_property", property] }
@@ -283,8 +287,9 @@ class MPVManager {
           throw new Error("Property is required for get_property command")
         }
         break
+      }
 
-      case "set_property":
+      case "set_property": {
         const prop = remoteCmd.params?.property
         const value = remoteCmd.params?.value
         if (prop && value !== undefined) {
@@ -295,12 +300,13 @@ class MPVManager {
           )
         }
         break
+      }
 
       default:
         throw new Error(`Unknown Action: ${remoteCmd.action}`)
     }
 
-    return await this.sendCommand(instanceId, mpvCommand)
+    return (await this.sendCommand(instanceId, mpvCommand)) as MPVResponse
   }
 
   private async getClientName(instanceId: string): Promise<string> {
@@ -312,7 +318,7 @@ class MPVManager {
       command: ["client_name"],
     })
 
-    console.log(`[MPVManager] Client cmd response:`, cmdResponse)
+    console.log("[MPVManager] Client cmd response:", cmdResponse)
 
     return (cmdResponse as MPVResponse)?.data as string
   }
@@ -338,7 +344,7 @@ class MPVManager {
   }
 
   async getAllInstances(): Promise<MPVInstance[]> {
-    console.log(`[MPVManager] Getting all instances`)
+    console.log("[MPVManager] Getting all instances")
     const instances = Array.from(this.instances.values())
     const instancesWithClientNames = await Promise.all(
       instances.map(async (instance) => {
@@ -360,7 +366,7 @@ class MPVManager {
   async stopInstance(id: string): Promise<void> {
     console.log(`[MPVManager] Stopping instance ${id}`)
     const instance = this.instances.get(id)
-    if (instance && instance.process) {
+    if (instance?.process) {
       try {
         console.log(`[MPVManager] Sending quit command to instance ${id}`)
         await this.sendCommand(id, { command: ["quit"] })
@@ -369,7 +375,6 @@ class MPVManager {
           `[MPVManager] Error sending quit command to instance ${id}:`,
           e
         )
-        // if IPC fails, force kill the process
         if (instance.process && typeof instance.process.kill === "function") {
           console.log(`[MPVManager] Force killing process for instance ${id}`)
           instance.process.kill()
@@ -383,7 +388,7 @@ class MPVManager {
   }
 
   private cleanDeadInstances() {
-    console.log(`[MPVManager] Cleaning dead instances`)
+    console.log("[MPVManager] Cleaning dead instances")
     const now = new Date()
     for (const [id, instance] of this.instances) {
       if (
@@ -394,7 +399,7 @@ class MPVManager {
         this.instances.delete(id)
       }
     }
-    console.log(`[MPVManager] Cleanup complete`)
+    console.log("[MPVManager] Cleanup complete")
   }
 }
 

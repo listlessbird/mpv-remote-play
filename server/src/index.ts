@@ -38,9 +38,32 @@ Bun.serve({
       POST: async (req) => {
         console.log("[ROUTE] POST /api/instances")
         try {
-          const body = await req.json()
+          const body = (await req.json()) as { mediaFile?: string }
           const mediaFile = body?.mediaFile
           console.log("[ROUTE] Creating instance with media file:", mediaFile)
+
+          if (mediaFile) {
+            const fileExists = await Bun.file(mediaFile).exists()
+            if (!fileExists) {
+              return Response.json(
+                { error: "Media file not found" },
+                { status: 404 }
+              )
+            }
+          }
+
+          const allInstances = await mpvManager.getAllInstances()
+
+          const runningInstances = allInstances.filter(
+            (i) => i.status === "running"
+          )
+
+          if (runningInstances.length > 0) {
+            return Response.json({
+              instanceId: runningInstances[0]?.id,
+              message: "MPV instance already running",
+            })
+          }
           const instanceId = await mpvManager.createInstance(mediaFile)
           return Response.json({
             instanceId,
@@ -63,6 +86,7 @@ Bun.serve({
         if (!instance) {
           return Response.json({ error: "Instance not found" }, { status: 404 })
         }
+        console.log("[ROUTE] Instance found:", instance)
         return Response.json(instance)
       },
 
@@ -91,6 +115,7 @@ Bun.serve({
             req.params.id,
             command
           )
+          console.log("[ROUTE] Command result:", result)
           return Response.json(result)
         } catch (error) {
           return Response.json(
