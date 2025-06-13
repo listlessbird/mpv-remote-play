@@ -2,10 +2,14 @@ import { colors, fontSize } from "@/lib/constants/tokens"
 import { BlurView } from "expo-blur"
 import { Tabs } from "expo-router"
 import { StyleSheet, Platform } from "react-native"
-import { FontAwesome } from "@expo/vector-icons"
+import { FontAwesome, FontAwesome6 } from "@expo/vector-icons"
 import { FloatingPlayer } from "@/components/floating-player"
+import { useActiveTrack } from "react-native-track-player"
 
 export default function TabLayout() {
+  const activeTrack = useActiveTrack()
+  const showFloatingPlayer = !!activeTrack
+
   return (
     <>
       <Tabs
@@ -50,6 +54,15 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="player"
+          options={{
+            title: "Player",
+            tabBarIcon: ({ color, size }) => (
+              <FontAwesome6 name="circle-play" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="settings"
           options={{
             title: "Settings",
@@ -59,14 +72,16 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-      <FloatingPlayer
-        style={{
-          position: "absolute",
-          bottom: 78,
-          left: 8,
-          right: 8,
-        }}
-      />
+      {showFloatingPlayer && (
+        <FloatingPlayer
+          style={{
+            position: "absolute",
+            bottom: 78,
+            left: 8,
+            right: 8,
+          }}
+        />
+      )}
     </>
   )
 }

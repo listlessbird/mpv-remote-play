@@ -2,13 +2,16 @@ import { QueryError } from "@/components/error-boundary"
 import { ShareTracksList } from "@/components/share-tracks-list"
 import { TracksListSkeleton } from "@/components/skeletons"
 import { useNavSearch } from "@/hooks/use-nav-search"
+import { apiClient } from "@/lib/api/api-client"
 import type { Track } from "@/lib/api/api-types"
+import { API_BASE_URL } from "@/lib/constants/constants"
 import { screenPadding } from "@/lib/constants/tokens"
 import { useShareContents } from "@/lib/queries"
 import { defaultStyles } from "@/styles"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useMemo } from "react"
 import { ScrollView, View } from "react-native"
+import TrackPlayer from "react-native-track-player"
 
 export function ShareContentScreen() {
   const { shareName, path } = useLocalSearchParams<{
@@ -65,8 +68,31 @@ export function ShareContentScreen() {
 
   //   TODO: handleFileClick
 
-  const handleFilePress = (file: Track) => {
+  const handleFilePress = async (file: Track) => {
     console.log(file)
+    try {
+      await TrackPlayer.reset()
+
+      const trackToAdd = {
+        id: file.id,
+        url: file.src,
+        title: file.title,
+        artist: file.playlist || "Unknown Artist",
+        artwork: file.thumbnail.startsWith("http")
+          ? file.thumbnail
+          : `${API_BASE_URL}/api/thumbnails/${file.id}`,
+        duration: file.duration,
+      }
+
+      await TrackPlayer.add(trackToAdd)
+      await TrackPlayer.play()
+
+      await apiClient.createMPVInstance(file.src)
+
+      router.push("/player")
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   if (isLoading) {

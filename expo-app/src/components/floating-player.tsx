@@ -16,6 +16,8 @@ import TrackPlayer, {
   useIsPlaying,
 } from "react-native-track-player"
 import { FontAwesome, FontAwesome6 } from "@expo/vector-icons"
+import { usePlayerCommands } from "@/hooks/use-player-commands"
+import { useRouter } from "expo-router"
 
 type PlayerControlsProps = {
   style?: ViewStyle
@@ -28,12 +30,13 @@ type PlayerButtonProps = {
 
 function PlayPauseButton({ iconSize, style }: PlayerButtonProps) {
   const { playing } = useIsPlaying()
+  const { play, pause } = usePlayerCommands()
 
   return (
     <View style={[{ height: iconSize }, style]}>
       <TouchableOpacity
         activeOpacity={0.85}
-        onPress={() => (playing ? TrackPlayer.pause() : TrackPlayer.play())}
+        onPress={() => (playing ? pause() : play())}
       >
         <FontAwesome
           name={playing ? "pause" : "play"}
@@ -46,12 +49,11 @@ function PlayPauseButton({ iconSize, style }: PlayerButtonProps) {
 }
 
 function SkipToPreviousButton({ iconSize = 30, style }: PlayerButtonProps) {
+  const { skipToPrevious } = usePlayerCommands()
+
   return (
     <View style={[{ height: iconSize }, style]}>
-      <TouchableOpacity
-        activeOpacity={0.7}
-        onPress={() => TrackPlayer.skipToPrevious()}
-      >
+      <TouchableOpacity activeOpacity={0.7} onPress={() => skipToPrevious()}>
         <FontAwesome6 name="backward" size={iconSize} color={colors.text} />
       </TouchableOpacity>
     </View>
@@ -59,12 +61,11 @@ function SkipToPreviousButton({ iconSize = 30, style }: PlayerButtonProps) {
 }
 
 function SkipToNextButton({ iconSize = 30, style }: PlayerButtonProps) {
+  const { skipToNext } = usePlayerCommands()
+
   return (
     <View style={[{ height: iconSize }, style]}>
-      <TouchableOpacity
-        activeOpacity={0.7}
-        onPress={() => TrackPlayer.skipToPrevious()}
-      >
+      <TouchableOpacity activeOpacity={0.7} onPress={() => skipToNext()}>
         <FontAwesome6 name="forward" size={iconSize} color={colors.text} />
       </TouchableOpacity>
     </View>
@@ -72,9 +73,11 @@ function SkipToNextButton({ iconSize = 30, style }: PlayerButtonProps) {
 }
 
 function StopButton({ iconSize = 30, style }: PlayerButtonProps) {
+  const { stop } = usePlayerCommands()
+
   return (
     <View style={[{ height: iconSize }, style]}>
-      <TouchableOpacity activeOpacity={0.7} onPress={() => TrackPlayer.stop()}>
+      <TouchableOpacity activeOpacity={0.7} onPress={() => stop()}>
         <FontAwesome6 name="stop" size={iconSize} color={colors.text} />
       </TouchableOpacity>
     </View>
@@ -83,8 +86,16 @@ function StopButton({ iconSize = 30, style }: PlayerButtonProps) {
 
 export function FloatingPlayer({ style }: ViewProps) {
   const activeTrack = useActiveTrack()
+  const router = useRouter()
 
   const displayedTrack = useMemo(() => {
+    // if (!activeTrack) return null
+
+    // return {
+    //   title: activeTrack.title || "Unknown Track",
+    //   artwork: activeTrack.artwork,
+    // }
+
     const sample = {
       title: "Sample Track",
     }
@@ -93,6 +104,10 @@ export function FloatingPlayer({ style }: ViewProps) {
   }, [activeTrack])
 
   if (!displayedTrack) return null
+
+  const handlePress = () => {
+    router.push("/player")
+  }
 
   return (
     <TouchableOpacity activeOpacity={0.9} style={[styles.container, style]}>
