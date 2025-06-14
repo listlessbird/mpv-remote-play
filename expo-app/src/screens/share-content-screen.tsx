@@ -1,3 +1,4 @@
+import { ConnectionStatus } from "@/components/connection-status"
 import { QueryError } from "@/components/error-boundary"
 import { NetworkError } from "@/components/network-error"
 import { ShareTracksList } from "@/components/share-tracks-list"
@@ -188,6 +189,7 @@ export function ShareContentScreen() {
 
   return (
     <View style={defaultStyles.container}>
+      <ConnectionStatus />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={{ paddingHorizontal: screenPadding.x }}

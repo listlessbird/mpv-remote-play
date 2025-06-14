@@ -1,10 +1,5 @@
-import { defaultStyles } from "@/styles"
-import { View, Text, StyleSheet } from "react-native"
+import { SettingsScreen } from "@/screens/settings-screen"
 
-export default function SettingsScreen() {
-  return (
-    <View style={defaultStyles.container}>
-      {/* <Text style={defaultStyles.text}>Settings Screen</Text> */}
-    </View>
-  )
+export default function SettingsScreenWrapper() {
+  return <SettingsScreen />
 }

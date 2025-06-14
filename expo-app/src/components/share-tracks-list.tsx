@@ -15,6 +15,7 @@ import type { ShareContents, Track } from "@/lib/api/api-types"
 import { AntDesign, Entypo, FontAwesome } from "@expo/vector-icons"
 import { useMemo } from "react"
 import { API_BASE_URL } from "@/lib/constants/constants"
+import { useSettingsStore } from "@/store/settings"
 
 type ContentItem =
   | { type: "directory"; name: string }
@@ -119,10 +120,11 @@ function DirectoryItem({
 
 function FileItem({ track, onPress }: { track: Track; onPress?: () => void }) {
   const isActive = false
+  const { connection } = useSettingsStore()
 
   const thumbnailUrl = useMemo(() => {
-    return `${API_BASE_URL}/api/thumbnails/${track.id}`
-  }, [track.id])
+    return `${connection.serverUrl}/api/thumbnails/${track.id}`
+  }, [track.id, connection.serverUrl])
 
   console.log(thumbnailUrl)
 

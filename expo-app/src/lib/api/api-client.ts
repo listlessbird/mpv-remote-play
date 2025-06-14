@@ -8,12 +8,15 @@ import type {
 } from "@/lib/api/api-types"
 import { API_BASE_URL } from "@/lib/constants/constants"
 import { fetch, type FetchRequestInit } from "expo/fetch"
+import { useSettingsStore } from "@/store/settings"
 
 class ApiClient {
-  private baseUrl: string
+  private get baseUrl() {
+    return useSettingsStore.getState().connection.serverUrl
+  }
 
-  constructor(baseUrl = API_BASE_URL) {
-    this.baseUrl = baseUrl
+  private get timeout() {
+    return useSettingsStore.getState().connection.connectionTimeout
   }
 
   private async request<T>(
@@ -21,18 +24,31 @@ class ApiClient {
     opts?: FetchRequestInit
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
-    const response = await fetch(url, {
-      headers: {
-        "Content-Type": "application/json",
-        ...(opts?.headers || {}),
-      },
-      ...opts,
-    })
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`API Error: ${response.status} - ${errorText}`)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout)
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(opts?.headers || {}),
+        },
+        signal: controller.signal,
+        ...opts,
+      })
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`API Error: ${response.status} - ${errorText}`)
+      }
+      return response.json()
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("Request timed out")
+      }
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
     }
-    return response.json()
   }
 
   async getServerStatus(): Promise<ServerStatus> {
@@ -75,6 +91,11 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify(command),
     })
+  }
+
+  async discover() {
+    // TODO: Implement discovery
+    return []
   }
 }
 

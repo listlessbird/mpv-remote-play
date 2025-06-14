@@ -18,6 +18,7 @@ import type { FlatListProps, TouchableHighlightProps } from "react-native"
 import { AntDesign, FontAwesome } from "@expo/vector-icons"
 import { useNavSearch } from "@/hooks/use-nav-search"
 import { useMemo } from "react"
+import { ConnectionStatus } from "@/components/connection-status"
 
 const ListItemSeperator = () => (
   <View
@@ -77,6 +78,7 @@ export function SharesScreen() {
           </Text>
         </View>
       )} */}
+      <ConnectionStatus />
 
       <ScrollView
         style={{

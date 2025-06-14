@@ -7,6 +7,7 @@ import type {
 } from "@/lib/api/api-types"
 import { useMPVInstanceStore } from "@/store/mpv-instance"
 import { usePlaylistStore } from "@/store/playlist"
+import { useSettingsStore } from "@/store/settings"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import TrackPlayer, {
@@ -19,6 +20,7 @@ export function usePlayerCommands() {
   const queryClient = useQueryClient()
   const activeTrack = useActiveTrack()
   const { state } = usePlaybackState()
+  const { playback } = useSettingsStore()
   const {
     activeInstance,
     setActiveInstance,
@@ -123,6 +125,28 @@ export function usePlayerCommands() {
     [syncCommandsToMpv]
   )
 
+  const seekForward = useCallback(async () => {
+    await syncCommandsToMpv({
+      action: "seek",
+      params: { time: playback.seekForwardInterval, type: "relative" },
+    })
+    const currentPosition = await TrackPlayer.getProgress()
+    await TrackPlayer.seekTo(
+      currentPosition.position + playback.seekForwardInterval
+    )
+  }, [syncCommandsToMpv, playback.seekForwardInterval])
+
+  const seekBackward = useCallback(async () => {
+    await syncCommandsToMpv({
+      action: "seek",
+      params: { time: -playback.seekBackwardInterval, type: "relative" },
+    })
+    const currentPosition = await TrackPlayer.getProgress()
+    await TrackPlayer.seekTo(
+      Math.max(0, currentPosition.position - playback.seekBackwardInterval)
+    )
+  }, [syncCommandsToMpv, playback.seekBackwardInterval])
+
   const setVolume = useCallback(
     async (volume: number) => {
       await TrackPlayer.setVolume(volume / 100)
@@ -172,6 +196,8 @@ export function usePlayerCommands() {
     seek,
     stop,
     setVolume,
+    seekForward,
+    seekBackward,
     skipToNext,
     skipToPrevious,
     isLoading:
