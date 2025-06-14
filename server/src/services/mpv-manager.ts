@@ -39,6 +39,8 @@ class MPVManager {
         "--player-operation-mode=pseudo-gui",
         "--idle=yes",
         "--force-window=yes",
+        "--sub-auto=fuzzy",
+        "--slang=en,eng",
         `--input-ipc-server=${pipeAddress}`,
       ]
 
@@ -342,7 +344,7 @@ class MPVManager {
       }))
 
     const subtitleTracks = tracks
-      .filter((t) => t.type === "subtitle")
+      .filter((t) => t.type === "sub")
       .map((t) => ({
         id: t.id,
         title: t.title || `Subtitle ${t.id}`,

@@ -10,9 +10,11 @@ import { MediaShare } from "./services/shares"
  */
 
 const shareService = new MediaShare()
-await shareService.init()
 
-Bun.serve({
+const server = Bun.serve({
+  port: 3000,
+  // hostname: "0.0.0.0",
+  development: true,
   routes: {
     "/api/status": () => {
       console.log("[ROUTE] GET /api/status")
@@ -236,20 +238,28 @@ Bun.serve({
       })
     },
   },
-
+  error(error) {
+    console.error("[ERROR] Server error:", error)
+    return new Response("Internal Server Error", { status: 500 })
+  },
   fetch(req) {
     console.log("[ROUTE] Not Found:", req.url)
     return new Response("Not Found", { status: 404 })
   },
 })
 
+shareService.init().then(() => {
+  console.log("\x1b[32m[INFO] Share service initialized\x1b[0m")
+})
+
 process.on("SIGINT", async () => {
   console.log("SIGINT signal received. Shutting down...")
   await shareService.shutdown()
+  await server.stop()
   process.exit(0)
 })
 
-console.log("MPV Remote Control Server running on http://localhost:3000")
+console.log(`MPV Remote Control Server running on ${server.url}`)
 console.log("Available shares: ", Object.keys(MEDIA_SHARES))
 
 // fetch("http://localhost:3000/api/instances", {
@@ -268,4 +278,4 @@ fetch("http://localhost:3000/api/instances", {
   headers: {
     "Content-Type": "application/json",
   },
-})
+}).then(console.log)

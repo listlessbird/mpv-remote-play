@@ -7,12 +7,46 @@ import BottomSheet, {
   BottomSheetFlatList,
   type BottomSheetBackdropProps,
 } from "@gorhom/bottom-sheet"
-import { type Ref, useCallback, useMemo, useState } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import {
+  type Ref,
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+} from "react"
+import { Pressable, StyleSheet, Text, View, Animated } from "react-native"
 import { FontAwesome, Ionicons } from "@expo/vector-icons"
 import { LoadingSpinner } from "@/components/loading"
 
 type TabType = "audio" | "subtitle"
+
+function AnimatedLoadingDots() {
+  const opacity = useRef(new Animated.Value(0.3)).current
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.3,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ])
+    )
+    animation.start()
+    return () => animation.stop()
+  }, [opacity])
+
+  return (
+    <Animated.Text style={[styles.loadingText, { opacity }]}>●●●</Animated.Text>
+  )
+}
 
 export function TrackSelectorSheet({ ref }: { ref?: Ref<BottomSheet> }) {
   const [activeTab, setActiveTab] = useState<TabType>("audio")
@@ -119,7 +153,7 @@ export function TrackSelectorSheet({ ref }: { ref?: Ref<BottomSheet> }) {
             renderItem={({ item }) => (
               <TrackItem
                 track={item}
-                isSelected={currentTrackId === item.id}
+                isSelected={item.selected}
                 onPress={() => handleTrackSelect(item.id)}
                 isLoading={isSettingTrack}
               />
@@ -150,7 +184,12 @@ interface TrackItemProps {
 function TrackItem({ track, isSelected, onPress, isLoading }: TrackItemProps) {
   return (
     <Pressable
-      style={[styles.trackItem, isSelected && styles.selectedTrackItem]}
+      style={({ pressed }) => [
+        styles.trackItem,
+        isSelected && styles.selectedTrackItem,
+        isLoading && styles.loadingTrackItem,
+        pressed && styles.pressedTrackItem,
+      ]}
       onPress={onPress}
       disabled={isLoading}
     >
@@ -162,10 +201,24 @@ function TrackItem({ track, isSelected, onPress, isLoading }: TrackItemProps) {
         </Text>
         <View style={styles.trackMeta}>
           {track.lang && (
-            <Text style={styles.trackMetaText}>{track.lang.toUpperCase()}</Text>
+            <Text
+              style={[
+                styles.trackMetaText,
+                isSelected && styles.selectedTrackMeta,
+              ]}
+            >
+              {track.lang.toUpperCase()}
+            </Text>
           )}
           {track.codec && (
-            <Text style={styles.trackMetaText}>• {track.codec}</Text>
+            <Text
+              style={[
+                styles.trackMetaText,
+                isSelected && styles.selectedTrackMeta,
+              ]}
+            >
+              • {track.codec}
+            </Text>
           )}
           {track.default && (
             <View style={styles.defaultBadge}>
@@ -175,9 +228,19 @@ function TrackItem({ track, isSelected, onPress, isLoading }: TrackItemProps) {
         </View>
       </View>
 
-      {isSelected && (
-        <FontAwesome name="check" size={20} color={colors.primary} />
-      )}
+      {isLoading ? (
+        <View style={styles.loadingIndicator}>
+          <AnimatedLoadingDots />
+        </View>
+      ) : isSelected ? (
+        <View style={styles.selectedIndicator}>
+          <FontAwesome
+            name="check"
+            size={18}
+            color="rgba(255, 255, 255, 0.9)"
+          />
+        </View>
+      ) : null}
     </Pressable>
   )
 }
@@ -232,7 +295,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingBottom: 100,
   },
   trackItem: {
     flexDirection: "row",
@@ -247,9 +310,17 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   selectedTrackItem: {
-    backgroundColor: "rgba(252, 60, 68, 0.1)",
-    borderColor: colors.primary,
-    opacity: 0.7,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(255, 255, 255, 0.2)",
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   trackInfo: {
     flex: 1,
@@ -262,7 +333,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   selectedTrackTitle: {
-    color: colors.primary,
+    color: "#ffffff",
+    fontWeight: "700",
   },
   trackMeta: {
     flexDirection: "row",
@@ -295,5 +367,33 @@ const styles = StyleSheet.create({
     ...defaultStyles.text,
     color: colors.textMuted,
     fontSize: fontSize.base,
+  },
+  loadingTrackItem: {
+    opacity: 0.6,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+  },
+  loadingIndicator: {
+    marginLeft: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingText: {
+    ...defaultStyles.text,
+    color: "rgba(255, 255, 255, 0.7)",
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    letterSpacing: 2,
+  },
+  selectedTrackMeta: {
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  pressedTrackItem: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    transform: [{ scale: 0.98 }],
+  },
+  selectedIndicator: {
+    marginLeft: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
 })

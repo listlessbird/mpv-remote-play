@@ -101,7 +101,7 @@ export interface ThumbnailResult {
 
 export type MPVAudioSubtitleTrack = Partial<{
   id: string
-  type: "audio" | "subtitle"
+  type: "audio" | "sub"
   title: string
   selected: boolean
   codec: string
