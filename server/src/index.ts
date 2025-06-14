@@ -127,6 +127,51 @@ Bun.serve({
         }
       },
     },
+    "/api/instances/:id/tracks": {
+      GET: async (req) => {
+        try {
+          console.log("[ROUTE] GET /api/instances/:id/tracks", req.params.id)
+          const tracks = await mpvManager.getAvailableTracks(req.params.id)
+          const current = await mpvManager.getCurrentTracks(req.params.id)
+          return Response.json({ ...tracks, ...current })
+        } catch (error) {
+          return Response.json(
+            {
+              error: `Failed to get tracks: ${error}`,
+            },
+            { status: 500 }
+          )
+        }
+      },
+      POST: async (req) => {
+        try {
+          const { type, trackId } = (await req.json()) as {
+            type: "audio" | "subtitle"
+            trackId: string
+          }
+          if (type === "audio") {
+            await mpvManager.setAudioTrack(req.params.id, trackId)
+          } else if (type === "subtitle") {
+            await mpvManager.setSubtitleTrack(req.params.id, trackId)
+          } else {
+            return Response.json(
+              {
+                error: "Invalid track type",
+              },
+              { status: 400 }
+            )
+          }
+          return Response.json({ message: "Track set successfully" })
+        } catch (error) {
+          return Response.json(
+            {
+              error: `Failed to set track: ${error}`,
+            },
+            { status: 500 }
+          )
+        }
+      },
+    },
     "/api/shares": {
       GET: async (req) => {
         console.log("[ROUTE] GET /api/shares")

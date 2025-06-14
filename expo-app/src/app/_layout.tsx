@@ -9,6 +9,7 @@ import { useCallback } from "react"
 import { useLogPlayerState } from "@/hooks/use-log-player-state"
 import { ServerStatusIndicator } from "@/components/network-error"
 import { useConnectionStats } from "@/hooks/use-connection-stats"
+import { GestureHandlerRootView } from "react-native-gesture-handler"
 
 SplashScreen.preventAutoHideAsync()
 
@@ -39,11 +40,13 @@ function AppContent() {
 function App() {
   return (
     <ErrorBoundary>
-      <SafeAreaProvider>
-        <QueryProvider>
-          <AppContent />
-        </QueryProvider>
-      </SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <QueryProvider>
+            <AppContent />
+          </QueryProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
     </ErrorBoundary>
   )
 }

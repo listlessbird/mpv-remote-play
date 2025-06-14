@@ -87,3 +87,40 @@ export interface SetPropertyCommand extends RemoteCommand {
     value: any
   }
 }
+
+export interface TrackInfo {
+  id: number
+  title: string
+  lang: string
+  codec: string
+  default: boolean
+  selected: boolean
+}
+
+export interface TracksResponse {
+  /**
+   * 
+   * {
+	"audioTracks": [
+		{
+			"id": 1,
+			"title": "Audio 1",
+			"lang": "eng",
+			"codec": "aac",
+			"default": true,
+			"selected": true
+		}
+	],
+	"subtitleTracks": [],
+	"audioTrack": 1,
+	"subtitleTrack": false
+}
+   * 
+   */
+  audioTracks: TrackInfo[]
+  subtitleTracks: TrackInfo[]
+
+  // current tracks
+  audioTrack: TrackInfo
+  subtitleTrack: TrackInfo | boolean
+}

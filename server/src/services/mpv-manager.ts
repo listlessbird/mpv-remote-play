@@ -1,4 +1,5 @@
 import type {
+  MPVAudioSubtitleTrack,
   MPVCommand,
   MPVInstance,
   MPVResponse,
@@ -317,6 +318,65 @@ class MPVManager {
     }
 
     return (await this.sendCommand(instanceId, mpvCommand)) as MPVResponse
+  }
+
+  async getAvailableTracks(instanceId: string) {
+    const tracksResponse = await this.sendCommand(instanceId, {
+      command: ["get_property", "track-list"],
+    })
+
+    const tracks = (tracksResponse as MPVResponse)
+      ?.data as MPVAudioSubtitleTrack[]
+
+    console.log("[MPVManager] Available tracks:", tracks)
+
+    const audioTracks = tracks
+      .filter((t) => t.type === "audio")
+      .map((t) => ({
+        id: t.id,
+        title: t.title || `Audio ${t.id}`,
+        lang: t.lang || "Unknown",
+        codec: t.codec || "Unknown",
+        default: t.default || false,
+        selected: t.selected || false,
+      }))
+
+    const subtitleTracks = tracks
+      .filter((t) => t.type === "subtitle")
+      .map((t) => ({
+        id: t.id,
+        title: t.title || `Subtitle ${t.id}`,
+        lang: t.lang || "Unknown",
+        codec: t.codec || "Unknown",
+        default: t.default || false,
+        selected: t.selected || false,
+      }))
+
+    return { audioTracks, subtitleTracks }
+  }
+
+  async setAudioTrack(instanceId: string, trackId: string) {
+    return await this.sendCommand(instanceId, {
+      command: ["set_property", "aid", trackId],
+    })
+  }
+
+  async setSubtitleTrack(instanceId: string, trackId: string) {
+    return await this.sendCommand(instanceId, {
+      command: ["set_property", "sid", trackId],
+    })
+  }
+
+  async getCurrentTracks(instanceId: string) {
+    const [audioTrack, subtitleTrack] = await Promise.all([
+      this.sendCommand(instanceId, { command: ["get_property", "aid"] }),
+      this.sendCommand(instanceId, { command: ["get_property", "sid"] }),
+    ])
+
+    return {
+      audioTrack: (audioTrack as MPVResponse)?.data,
+      subtitleTrack: (subtitleTrack as MPVResponse)?.data,
+    }
   }
 
   private async getClientName(instanceId: string): Promise<string> {

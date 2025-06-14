@@ -3,6 +3,9 @@ import { useTrackSync } from "@/hooks/use-track-sync"
 import { unknownVideoImageUri } from "@/lib/constants/images"
 import { colors, fontSize } from "@/lib/constants/tokens"
 import { defaultStyles } from "@/styles"
+import { TrackSelectorSheet } from "@/components/track-selector-sheet"
+import BottomSheet from "@gorhom/bottom-sheet"
+import { useRef } from "react"
 import Slider from "@react-native-community/slider"
 import { Image } from "expo-image"
 import { LinearGradient } from "expo-linear-gradient"
@@ -54,6 +57,8 @@ export function PlayerScreen() {
   const playing = mpvState ? !mpvState.paused : trackPlayerPlaying
   const position = mpvState?.position ?? trackPlayerPosition
   const duration = mpvState?.duration ?? trackPlayerDuration
+
+  const bottomSheetRef = useRef<BottomSheet>(null)
 
   const [volume, setVolumeState] = useState(0.5)
   const [isSeeking, setIsSeeking] = useState(false)
@@ -110,6 +115,10 @@ export function PlayerScreen() {
     [setVolume]
   )
 
+  const handleTrackSelectorOpen = useCallback(() => {
+    bottomSheetRef.current?.expand()
+  }, [])
+
   useEffect(() => {
     if (activeTrack) {
       console.log("Active track changed:", activeTrack.title)
@@ -126,110 +135,120 @@ export function PlayerScreen() {
   const displayTrack = currentTrack || activeTrack
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
-        styles.contentContainer,
-        { paddingTop: insets.top + 60 },
-      ]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.artworkSection}>
-        <View style={styles.artworkContainer}>
-          <Image
-            source={{ uri: displayTrack?.artwork || unknownVideoImageUri }}
-            style={styles.artwork}
-            contentFit="cover"
-          />
-          <LinearGradient
-            colors={["transparent", "rgba(0, 0, 0, 0.8)"]}
-            style={styles.artworkGradient}
-          />
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingTop: insets.top + 60 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.artworkSection}>
+          <View style={styles.artworkContainer}>
+            <Image
+              source={{ uri: displayTrack?.artwork || unknownVideoImageUri }}
+              style={styles.artwork}
+              contentFit="cover"
+            />
+            <LinearGradient
+              colors={["transparent", "rgba(0, 0, 0, 0.8)"]}
+              style={styles.artworkGradient}
+            />
+          </View>
         </View>
-      </View>
 
-      <View style={styles.infoSection}>
-        <Text style={styles.title} numberOfLines={2}>
-          {displayTrack?.title || "No Track Playing"}
-        </Text>
-        {displayTrack?.artist && (
-          <Text style={styles.artist} numberOfLines={1}>
-            {displayTrack?.artist}
+        <View style={styles.infoSection}>
+          <Text style={styles.title} numberOfLines={2}>
+            {displayTrack?.title || "No Track Playing"}
           </Text>
-        )}
-      </View>
-
-      <View style={styles.progressSection}>
-        <Slider
-          style={styles.progressSlider}
-          value={displayPosition}
-          minimumValue={0}
-          maximumValue={duration}
-          onSlidingStart={handleSeekStart}
-          onValueChange={handleSeekChange}
-          onSlidingComplete={handleSeekEnd}
-          minimumTrackTintColor={colors.primary}
-          maximumTrackTintColor={"rgba(255, 255, 255, 0.2)"}
-          thumbTintColor={colors.primary}
-        />
-        <View style={styles.timeLabels}>
-          <Text style={styles.timeText}>{formatTime(displayPosition)}</Text>
-          <Text style={styles.timeText}>{formatTime(duration)}</Text>
+          {displayTrack?.artist && (
+            <Text style={styles.artist} numberOfLines={1}>
+              {displayTrack?.artist}
+            </Text>
+          )}
         </View>
-      </View>
 
-      <View style={styles.controlsSection}>
-        <TouchableOpacity onPress={skipToPrevious} style={styles.controlButton}>
-          <FontAwesome6 name="backward-step" size={32} color={colors.text} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={handlePlayPause}
-          style={styles.playPauseButton}
-        >
-          <FontAwesome
-            name={playing ? "pause" : "play"}
-            size={40}
-            color={colors.text}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={skipToNext} style={styles.controlButton}>
-          <FontAwesome6 name="forward-step" size={32} color={colors.text} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.secondaryControls}>
-        <TouchableOpacity onPress={stop} style={styles.controlButton}>
-          <FontAwesome6 name="stop" size={24} color={colors.textMuted} />
-        </TouchableOpacity>
-
-        <View style={styles.volumeContainer}>
-          <Ionicons
-            name={volume > 0 ? "volume-medium" : "volume-mute"}
-            size={24}
-            color={colors.textMuted}
-          />
+        <View style={styles.progressSection}>
           <Slider
-            style={styles.volumeSlider}
-            value={volume}
+            style={styles.progressSlider}
+            value={displayPosition}
             minimumValue={0}
-            maximumValue={1}
-            onValueChange={handleVolumeChange}
+            maximumValue={duration}
+            onSlidingStart={handleSeekStart}
+            onValueChange={handleSeekChange}
+            onSlidingComplete={handleSeekEnd}
             minimumTrackTintColor={colors.primary}
             maximumTrackTintColor={"rgba(255, 255, 255, 0.2)"}
             thumbTintColor={colors.primary}
           />
+          <View style={styles.timeLabels}>
+            <Text style={styles.timeText}>{formatTime(displayPosition)}</Text>
+            <Text style={styles.timeText}>{formatTime(duration)}</Text>
+          </View>
         </View>
 
-        <TouchableOpacity style={styles.secondaryButton}>
-          <MaterialCommunityIcons
-            name="playlist-music"
-            size={24}
-            color={colors.textMuted}
-          />
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        <View style={styles.controlsSection}>
+          <TouchableOpacity
+            onPress={skipToPrevious}
+            style={styles.controlButton}
+          >
+            <FontAwesome6 name="backward-step" size={32} color={colors.text} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handlePlayPause}
+            style={styles.playPauseButton}
+          >
+            <FontAwesome
+              name={playing ? "pause" : "play"}
+              size={40}
+              color={colors.text}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={skipToNext} style={styles.controlButton}>
+            <FontAwesome6 name="forward-step" size={32} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.secondaryControls}>
+          <TouchableOpacity onPress={stop} style={styles.controlButton}>
+            <FontAwesome6 name="stop" size={24} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <View style={styles.volumeContainer}>
+            <Ionicons
+              name={volume > 0 ? "volume-medium" : "volume-mute"}
+              size={24}
+              color={colors.textMuted}
+            />
+            <Slider
+              style={styles.volumeSlider}
+              value={volume}
+              minimumValue={0}
+              maximumValue={1}
+              onValueChange={handleVolumeChange}
+              minimumTrackTintColor={colors.primary}
+              maximumTrackTintColor={"rgba(255, 255, 255, 0.2)"}
+              thumbTintColor={colors.primary}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={handleTrackSelectorOpen}
+          >
+            <MaterialCommunityIcons
+              name="playlist-music"
+              size={24}
+              color={colors.textMuted}
+            />
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      <TrackSelectorSheet ref={bottomSheetRef} />
+    </View>
   )
 }
 
@@ -237,6 +256,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scrollContainer: {
+    flex: 1,
   },
   contentContainer: {
     paddingHorizontal: 24,

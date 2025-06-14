@@ -5,6 +5,7 @@ import type {
   ServerStatus,
   Share,
   ShareContents,
+  TracksResponse,
 } from "@/lib/api/api-types"
 import { API_BASE_URL } from "@/lib/constants/constants"
 import { fetch, type FetchRequestInit } from "expo/fetch"
@@ -93,6 +94,23 @@ class ApiClient {
     })
   }
 
+  async getTracks(instanceId: string): Promise<TracksResponse> {
+    return this.request<TracksResponse>(`/api/instances/${instanceId}/tracks`)
+  }
+
+  async setTrack(
+    instanceId: string,
+    type: "audio" | "subtitle",
+    trackId: number
+  ) {
+    return this.request<{ message: string }>(
+      `/api/instances/${instanceId}/tracks`,
+      {
+        method: "POST",
+        body: JSON.stringify({ type, trackId }),
+      }
+    )
+  }
   async discover() {
     // TODO: Implement discovery
     return []
