@@ -37,7 +37,7 @@ export function ShareContentScreen() {
     return decodeURIComponent(path)
   }, [path])
 
-  console.log({ decodedPath })
+  // console.log({ decodedPath })
 
   const {
     data: contents,
@@ -102,9 +102,18 @@ export function ShareContentScreen() {
       try {
         const allFiles = filteredContents?.files || []
         const fileIndex = allFiles.findIndex((f) => f.id === file.id)
+        console.log(
+          `Setting playlist with ${allFiles.length} files, starting at index ${fileIndex}`
+        )
 
         setPlaylist(allFiles, fileIndex >= 0 ? fileIndex : 0)
         await loadPlaylistToPlayer()
+
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+
+        if (fileIndex > 0) {
+          await TrackPlayer.skip(fileIndex)
+        }
 
         await TrackPlayer.play()
 

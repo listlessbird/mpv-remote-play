@@ -30,6 +30,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
 
     try {
       await TrackPlayer.reset()
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
       const rntpTracks: RNTPTrack[] = currentPlaylist.map((track) => ({
         id: track.id,
@@ -43,9 +44,23 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
       }))
 
       await TrackPlayer.add(rntpTracks)
+      await new Promise((resolve) => setTimeout(resolve, 200))
 
       if (currentIndex > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+
         await TrackPlayer.skip(currentIndex)
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        const activeTrack = await TrackPlayer.getActiveTrack()
+
+        const activeIndex = await TrackPlayer.getActiveTrackIndex()
+        console.log("Active track after skip:", activeTrack?.title)
+
+        if (activeIndex !== currentIndex) {
+          console.error(
+            `Failed to skip to index ${currentIndex}, got ${activeIndex}`
+          )
+        }
       }
 
       set({ isLoading: false })

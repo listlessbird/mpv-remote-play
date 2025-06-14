@@ -126,8 +126,6 @@ function FileItem({ track, onPress }: { track: Track; onPress?: () => void }) {
     return `${connection.serverUrl}/api/thumbnails/${track.id}`
   }, [track.id, connection.serverUrl])
 
-  console.log(thumbnailUrl)
-
   return (
     <TouchableHighlight
       activeOpacity={0.8}

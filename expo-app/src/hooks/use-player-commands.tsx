@@ -98,6 +98,7 @@ export function usePlayerCommands() {
   )
 
   const play = useCallback(async () => {
+    // console.log("playlist", { rnTp: await TrackPlayer.getQueue() })
     await syncCommandsToMpv({ action: "play" })
     await TrackPlayer.play()
   }, [syncCommandsToMpv])
@@ -160,9 +161,19 @@ export function usePlayerCommands() {
   )
 
   const skipToNext = useCallback(async () => {
-    const nextTrack = await TrackPlayer.getTrack(1)
+    const currentIndex = await TrackPlayer.getActiveTrackIndex()
+    const queue = await TrackPlayer.getQueue()
+
+    if (
+      currentIndex === null ||
+      (currentIndex && currentIndex >= queue.length - 1)
+    ) {
+      return
+    }
+
+    await TrackPlayer.skipToNext()
+    const nextTrack = await TrackPlayer.getActiveTrack()
     if (nextTrack) {
-      await TrackPlayer.skipToNext()
       await syncCommandsToMpv({
         action: "loadfile",
         params: { file: nextTrack.url, mode: "replace" },
@@ -172,15 +183,18 @@ export function usePlayerCommands() {
 
   const skipToPrevious = useCallback(async () => {
     const currentIndex = await TrackPlayer.getActiveTrackIndex()
-    if (currentIndex && currentIndex > 0) {
-      await TrackPlayer.skipToPrevious()
-      const prevTrack = await TrackPlayer.getTrack(currentIndex - 1)
-      if (prevTrack) {
-        await syncCommandsToMpv({
-          action: "loadfile",
-          params: { file: prevTrack.url, mode: "replace" },
-        })
-      }
+
+    if (currentIndex === null || (currentIndex && currentIndex <= 0)) {
+      return
+    }
+
+    await TrackPlayer.skipToPrevious()
+    const prevTrack = await TrackPlayer.getActiveTrack()
+    if (prevTrack) {
+      await syncCommandsToMpv({
+        action: "loadfile",
+        params: { file: prevTrack.url, mode: "replace" },
+      })
     }
   }, [syncCommandsToMpv])
 

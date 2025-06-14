@@ -68,8 +68,17 @@ export function useTrackSync() {
     )
 
     if (positionDiff > syncThreshold && lastSyncDiff > 1) {
-      TrackPlayer.seekTo(mpvState.position)
-      lastSyncedPosition.current = mpvState.position
+      const timeoutId = setTimeout(() => {
+        TrackPlayer.seekTo(mpvState.position)
+          .then(() => {
+            lastSyncedPosition.current = mpvState.position
+          })
+          .catch((error) => {
+            console.error("Failed to sync position:", error)
+          })
+      }, 200)
+
+      return () => clearTimeout(timeoutId)
     }
   }, [mpvState, activeInstance, position])
 

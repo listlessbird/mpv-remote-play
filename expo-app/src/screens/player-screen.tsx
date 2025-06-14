@@ -6,7 +6,7 @@ import { defaultStyles } from "@/styles"
 import Slider from "@react-native-community/slider"
 import { Image } from "expo-image"
 import { LinearGradient } from "expo-linear-gradient"
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   Dimensions,
   ScrollView,
@@ -16,7 +16,7 @@ import {
   View,
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import {
+import TrackPlayer, {
   useActiveTrack,
   useIsPlaying,
   useProgress,
@@ -27,11 +27,13 @@ import {
   Ionicons,
   MaterialCommunityIcons,
 } from "@expo/vector-icons"
+import type { Track } from "react-native-track-player"
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window")
 
 export function PlayerScreen() {
   const activeTrack = useActiveTrack()
+  const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
   const { playing: trackPlayerPlaying } = useIsPlaying()
   const { position: trackPlayerPosition, duration: trackPlayerDuration } =
     useProgress()
@@ -56,6 +58,24 @@ export function PlayerScreen() {
   const [volume, setVolumeState] = useState(0.5)
   const [isSeeking, setIsSeeking] = useState(false)
   const [seekPosition, setSeekPosition] = useState(0)
+
+  // active track from rn-track-player is not updated when the track changes
+  // so poll for changes
+  useEffect(() => {
+    const loadCurrentTrack = async () => {
+      const index = await TrackPlayer.getActiveTrackIndex()
+      const queue = await TrackPlayer.getQueue()
+
+      if (typeof index === "number" && queue[index]) {
+        setCurrentTrack(queue[index])
+      }
+    }
+
+    loadCurrentTrack()
+
+    const interval = setInterval(loadCurrentTrack, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handlePlayPause = useCallback(() => {
     if (playing) {
@@ -90,6 +110,12 @@ export function PlayerScreen() {
     [setVolume]
   )
 
+  useEffect(() => {
+    if (activeTrack) {
+      console.log("Active track changed:", activeTrack.title)
+    }
+  }, [activeTrack])
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
@@ -97,6 +123,7 @@ export function PlayerScreen() {
   }
 
   const displayPosition = isSeeking ? seekPosition : position
+  const displayTrack = currentTrack || activeTrack
 
   return (
     <ScrollView
@@ -110,7 +137,7 @@ export function PlayerScreen() {
       <View style={styles.artworkSection}>
         <View style={styles.artworkContainer}>
           <Image
-            source={{ uri: activeTrack?.artwork || unknownVideoImageUri }}
+            source={{ uri: displayTrack?.artwork || unknownVideoImageUri }}
             style={styles.artwork}
             contentFit="cover"
           />
@@ -123,11 +150,11 @@ export function PlayerScreen() {
 
       <View style={styles.infoSection}>
         <Text style={styles.title} numberOfLines={2}>
-          {activeTrack?.title || "No Track Playing"}
+          {displayTrack?.title || "No Track Playing"}
         </Text>
-        {activeTrack?.artist && (
+        {displayTrack?.artist && (
           <Text style={styles.artist} numberOfLines={1}>
-            {activeTrack?.artist}
+            {displayTrack?.artist}
           </Text>
         )}
       </View>
