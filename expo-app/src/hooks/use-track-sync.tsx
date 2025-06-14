@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api/api-client"
-import { MPVInstance, GetPropertyCommand } from "@/lib/api/api-types"
+import type { MPVInstance, GetPropertyCommand } from "@/lib/api/api-types"
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef } from "react"
 import TrackPlayer, { useProgress } from "react-native-track-player"
@@ -8,15 +8,6 @@ export function useTrackSync() {
   const { position } = useProgress()
   const lastSyncedPosition = useRef(0)
   const syncThreshold = 5
-
-  //   const { data: activeInstance } = useQuery({
-  //     queryKey: ["mpv", "active-instance"],
-  //     queryFn: async () => {
-  //       const instances = await apiClient.getMPVInstances()
-  //       return instances.find((instance) => instance.status === "running")
-  //     },
-  //     refetchInterval: 2 * 1000,
-  //   })
 
   const { data: instances } = useQuery({
     queryKey: ["mpv-instances"],

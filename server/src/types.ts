@@ -25,6 +25,7 @@ export interface RemoteCommand {
     | "pause"
     | "stop"
     | "seek"
+    | "loadfile"
     | "volume"
     | "mute"
     | "get_property"

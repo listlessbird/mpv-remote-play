@@ -54,6 +54,7 @@ export interface RemoteCommand {
     | "mute"
     | "get_property"
     | "set_property"
+    | "loadfile"
   params?: Record<string, any>
 }
 

@@ -17,6 +17,9 @@ export function useServerStatus() {
     queryKey: queryKeys.serverStatus,
     queryFn: () => apiClient.getServerStatus(),
     refetchInterval: 1000 * 60,
+    retry: 2,
+    retryDelay: 1000,
+    refetchIntervalInBackground: true,
   })
 }
 

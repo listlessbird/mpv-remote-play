@@ -7,10 +7,12 @@ import { SafeAreaProvider } from "react-native-safe-area-context"
 import { SplashScreen } from "expo-router"
 import { useCallback } from "react"
 import { useLogPlayerState } from "@/hooks/use-log-player-state"
+import { ServerStatusIndicator } from "@/components/network-error"
+import { useConnectionStats } from "@/hooks/use-connection-stats"
 
 SplashScreen.preventAutoHideAsync()
 
-const App = () => {
+function AppContent() {
   const handleTrackPlayerReady = useCallback(() => {
     SplashScreen.hideAsync()
   }, [])
@@ -18,22 +20,29 @@ const App = () => {
   useSetupTrackPlayer({
     onLoad: handleTrackPlayerReady,
   })
+
   useLogPlayerState()
 
+  const { isConnected, isChecking, lastError } = useConnectionStats()
+
+  return (
+    <>
+      <ServerStatusIndicator isConnected={isConnected} lastError={lastError} />
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack>
+      <StatusBar style="auto" />
+    </>
+  )
+}
+
+function App() {
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
         <QueryProvider>
-          <Stack>
-            <Stack.Screen
-              name="(tabs)"
-              options={{
-                headerShown: false,
-              }}
-            />
-          </Stack>
+          <AppContent />
         </QueryProvider>
-        <StatusBar style="auto" />
       </SafeAreaProvider>
     </ErrorBoundary>
   )

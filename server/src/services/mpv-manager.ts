@@ -263,6 +263,16 @@ class MPVManager {
       case "stop":
         mpvCommand = { command: ["stop"] }
         break
+
+      case "loadfile": {
+        const filePath = remoteCmd.params?.file
+        const mode = remoteCmd.params?.mode || "replace"
+        if (!filePath) {
+          throw new Error("File path is required for loadfile command")
+        }
+        mpvCommand = { command: ["loadfile", filePath, mode] }
+        break
+      }
       case "seek": {
         const seekTime = remoteCmd.params?.time || 0
         const seekType = remoteCmd.params?.type || "absolute"

@@ -1,39 +1,50 @@
 import { apiClient } from "@/lib/api/api-client"
-import {
+import type {
   MPVInstance,
   RemoteCommand,
   SeekCommand,
   VolumeCommand,
 } from "@/lib/api/api-types"
+import { useMPVInstanceStore } from "@/store/mpv-instance"
+import { usePlaylistStore } from "@/store/playlist"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useMemo, useRef } from "react"
-import TrackPlayer, { useActiveTrack } from "react-native-track-player"
+import TrackPlayer, {
+  State,
+  useActiveTrack,
+  usePlaybackState,
+} from "react-native-track-player"
 
 export function usePlayerCommands() {
   const queryClient = useQueryClient()
   const activeTrack = useActiveTrack()
-  const instanceRef = useRef<string | null>(null)
+  const { state } = usePlaybackState()
+  const {
+    activeInstance,
+    setActiveInstance,
+    clearIfInvalid,
+    validateInstance,
+  } = useMPVInstanceStore()
+  const { currentPlaylist } = usePlaylistStore()
 
   const { data: instances } = useQuery({
     queryKey: ["mpv-instances"],
-    queryFn: () => apiClient.getMPVInstances(),
+    queryFn: () =>
+      apiClient.getMPVInstances().then((instances) => {
+        clearIfInvalid()
+        return instances
+      }),
     refetchInterval: 5 * 1000,
   })
-
-  const activeInstance = useMemo(() => {
-    return instances?.find((i: MPVInstance) => i.status === "running")
-  }, [instances])
-
-  useEffect(() => {
-    if (activeInstance) {
-      instanceRef.current = activeInstance.id
-    }
-  }, [activeInstance])
 
   const createInstanceMutation = useMutation({
     mutationFn: (mediaFile?: string) => apiClient.createMPVInstance(mediaFile),
     onSuccess(data, variables, context) {
-      instanceRef.current = data.instanceId
+      setActiveInstance({
+        id: data.instanceId,
+        status: "running",
+        lastSeen: new Date().toISOString(),
+      })
       queryClient.invalidateQueries({ queryKey: ["mpv-instances"] })
     },
   })
@@ -46,85 +57,114 @@ export function usePlayerCommands() {
       instanceId: string
       command: RemoteCommand
     }) => apiClient.sendMPVCommand(instanceId, command),
+    onError: async (error) => {
+      console.error("MPV command failed:", error)
+      await clearIfInvalid()
+    },
   })
 
   const ensureInstance = useCallback(async () => {
-    if (!instanceRef.current && !activeInstance) {
+    if (!activeInstance) {
       const mediaFile = activeTrack?.url
       const result = await createInstanceMutation.mutateAsync(mediaFile)
       return result.instanceId
     }
-    return instanceRef.current || activeInstance?.id
-  }, [activeInstance, activeTrack, createInstanceMutation])
+
+    const isValid = await validateInstance()
+    if (!isValid) {
+      const mediaFile = activeTrack?.url
+      const result = await createInstanceMutation.mutateAsync(mediaFile)
+      return result.instanceId
+    }
+
+    return activeInstance.id
+  }, [activeInstance, activeTrack, validateInstance, createInstanceMutation])
+
+  const syncCommandsToMpv = useCallback(
+    async (cmd: RemoteCommand) => {
+      try {
+        const instanceId = await ensureInstance()
+
+        if (instanceId) {
+          await sendCommandMutation.mutateAsync({ instanceId, command: cmd })
+        }
+      } catch (error) {
+        console.error("Failed to send MPV command:", error)
+      }
+    },
+    [ensureInstance, sendCommandMutation]
+  )
 
   const play = useCallback(async () => {
-    const instanceId = await ensureInstance()
-    if (instanceId) {
-      await sendCommandMutation.mutateAsync({
-        instanceId,
-        command: { action: "play" },
-      })
-      await TrackPlayer.play()
-    }
-  }, [ensureInstance, sendCommandMutation])
+    await syncCommandsToMpv({ action: "play" })
+    await TrackPlayer.play()
+  }, [syncCommandsToMpv])
 
   const pause = useCallback(async () => {
-    const instanceId = await ensureInstance()
-    if (instanceId) {
-      await sendCommandMutation.mutateAsync({
-        instanceId,
-        command: { action: "pause" },
-      })
-    }
-  }, [ensureInstance, sendCommandMutation])
+    await syncCommandsToMpv({ action: "pause" })
+    await TrackPlayer.pause()
+  }, [syncCommandsToMpv])
+
+  const stop = useCallback(async () => {
+    await TrackPlayer.stop()
+    await syncCommandsToMpv({ action: "stop" })
+    setActiveInstance(null)
+  }, [syncCommandsToMpv, setActiveInstance])
 
   const seek = useCallback(
     async (position: number) => {
-      const instanceId = instanceRef.current || activeInstance?.id
-      if (instanceId) {
-        const seekCommand: SeekCommand = {
-          action: "seek",
-          params: { time: position, type: "absolute" },
-        }
-        await sendCommandMutation.mutateAsync({
-          instanceId,
-          command: seekCommand,
-        })
-        await TrackPlayer.seekTo(position)
+      await TrackPlayer.seekTo(position)
+      const seekCommand: SeekCommand = {
+        action: "seek",
+        params: { time: position, type: "absolute" },
       }
+      await syncCommandsToMpv(seekCommand)
     },
-    [activeInstance, sendCommandMutation]
+    [syncCommandsToMpv]
   )
 
   const setVolume = useCallback(
     async (volume: number) => {
-      const instanceId = instanceRef.current || activeInstance?.id
-      if (instanceId) {
-        const volumeCommand: VolumeCommand = {
-          action: "volume",
-          params: { level: volume },
-        }
-        await sendCommandMutation.mutateAsync({
-          instanceId,
-          command: volumeCommand,
-        })
-        await TrackPlayer.setVolume(volume / 100)
+      await TrackPlayer.setVolume(volume / 100)
+      const volumeCommand: VolumeCommand = {
+        action: "volume",
+        params: { level: volume },
       }
+      await syncCommandsToMpv(volumeCommand)
     },
-    [activeInstance, sendCommandMutation]
+    [syncCommandsToMpv]
   )
 
   const skipToNext = useCallback(async () => {
-    await TrackPlayer.skipToNext()
-  }, [])
+    const nextTrack = await TrackPlayer.getTrack(1)
+    if (nextTrack) {
+      await TrackPlayer.skipToNext()
+      await syncCommandsToMpv({
+        action: "loadfile",
+        params: { file: nextTrack.url, mode: "replace" },
+      })
+    }
+  }, [syncCommandsToMpv])
 
   const skipToPrevious = useCallback(async () => {
-    await TrackPlayer.skipToPrevious()
-  }, [])
+    const currentIndex = await TrackPlayer.getActiveTrackIndex()
+    if (currentIndex && currentIndex > 0) {
+      await TrackPlayer.skipToPrevious()
+      const prevTrack = await TrackPlayer.getTrack(currentIndex - 1)
+      if (prevTrack) {
+        await syncCommandsToMpv({
+          action: "loadfile",
+          params: { file: prevTrack.url, mode: "replace" },
+        })
+      }
+    }
+  }, [syncCommandsToMpv])
 
-  const stop = useCallback(async () => {
-    await TrackPlayer.stop()
-  }, [])
+  useEffect(() => {
+    if (state === State.Ended && currentPlaylist.length > 0) {
+      skipToNext()
+    }
+  }, [state, currentPlaylist, skipToNext])
 
   return {
     play,

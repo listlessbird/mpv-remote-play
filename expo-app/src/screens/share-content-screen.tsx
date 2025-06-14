@@ -1,16 +1,19 @@
 import { QueryError } from "@/components/error-boundary"
+import { NetworkError } from "@/components/network-error"
 import { ShareTracksList } from "@/components/share-tracks-list"
 import { TracksListSkeleton } from "@/components/skeletons"
+import { useConnectionStats } from "@/hooks/use-connection-stats"
 import { useNavSearch } from "@/hooks/use-nav-search"
 import { apiClient } from "@/lib/api/api-client"
 import type { Track } from "@/lib/api/api-types"
-import { API_BASE_URL } from "@/lib/constants/constants"
 import { screenPadding } from "@/lib/constants/tokens"
 import { useShareContents } from "@/lib/queries"
+import { useMPVInstanceStore } from "@/store/mpv-instance"
+import { usePlaylistStore } from "@/store/playlist"
 import { defaultStyles } from "@/styles"
 import { useLocalSearchParams, useRouter } from "expo-router"
-import { useMemo } from "react"
-import { ScrollView, View } from "react-native"
+import { useCallback, useMemo } from "react"
+import { Alert, ScrollView, View } from "react-native"
 import TrackPlayer from "react-native-track-player"
 
 export function ShareContentScreen() {
@@ -18,8 +21,11 @@ export function ShareContentScreen() {
     shareName: string
     path: string | string[]
   }>()
-
   const router = useRouter()
+
+  const { isConnected, errorType, lastError } = useConnectionStats()
+  const { setPlaylist, loadPlaylistToPlayer } = usePlaylistStore()
+  const { setActiveInstance, activeInstance } = useMPVInstanceStore()
 
   const decodedPath = useMemo(() => {
     if (!path) return undefined
@@ -68,31 +74,82 @@ export function ShareContentScreen() {
 
   //   TODO: handleFileClick
 
-  const handleFilePress = async (file: Track) => {
-    console.log(file)
-    try {
-      await TrackPlayer.reset()
+  const handleFilePress = useCallback(
+    async (file: Track) => {
+      console.log(file)
 
-      const trackToAdd = {
-        id: file.id,
-        url: file.src,
-        title: file.title,
-        artist: file.playlist || "Unknown Artist",
-        artwork: file.thumbnail.startsWith("http")
-          ? file.thumbnail
-          : `${API_BASE_URL}/api/thumbnails/${file.id}`,
-        duration: file.duration,
+      if (!isConnected) {
+        Alert.alert(
+          "No connection",
+          "Please connect to the proper network to play this file",
+          [
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+            {
+              text: "Retry",
+              onPress: () => {
+                refetch()
+              },
+            },
+          ]
+        )
+        return
       }
 
-      await TrackPlayer.add(trackToAdd)
-      await TrackPlayer.play()
+      try {
+        const allFiles = filteredContents?.files || []
+        const fileIndex = allFiles.findIndex((f) => f.id === file.id)
 
-      await apiClient.createMPVInstance(file.src)
+        setPlaylist(allFiles, fileIndex >= 0 ? fileIndex : 0)
+        await loadPlaylistToPlayer()
 
-      router.push("/player")
-    } catch (error) {
-      console.error(error)
-    }
+        await TrackPlayer.play()
+
+        try {
+          if (activeInstance) {
+            await apiClient.sendMPVCommand(activeInstance.id, {
+              action: "loadfile",
+              params: { file: file.src, mode: "replace" },
+            })
+          } else {
+            const { instanceId } = await apiClient.createMPVInstance(file.src)
+            setActiveInstance({
+              id: instanceId,
+              status: "running",
+              lastSeen: new Date().toISOString(),
+            })
+          }
+        } catch (mpvError) {
+          console.error("MPV sync failed when selecting file", mpvError)
+        }
+
+        router.push("/player")
+      } catch (error) {
+        console.error(error)
+      }
+    },
+    [
+      isConnected,
+      filteredContents,
+      refetch,
+      activeInstance,
+      setActiveInstance,
+      router,
+      setPlaylist,
+      loadPlaylistToPlayer,
+    ]
+  )
+
+  if (!isConnected && lastError) {
+    return (
+      <NetworkError
+        error={lastError}
+        type={errorType || "unknown"}
+        onRetry={refetch}
+      />
+    )
   }
 
   if (isLoading) {
@@ -104,6 +161,19 @@ export function ShareContentScreen() {
   }
 
   if (error) {
+    const isNetworkError =
+      error.message.toLowerCase().includes("network") ||
+      error.message.toLowerCase().includes("fetch")
+
+    if (isNetworkError) {
+      return (
+        <NetworkError
+          error={error as Error}
+          type="connection"
+          onRetry={refetch}
+        />
+      )
+    }
     return (
       <QueryError
         error={error}
@@ -115,8 +185,6 @@ export function ShareContentScreen() {
   // @ts-ignore
   //   biome-ignore lint/style/noNonNullAssertion: contents is not null
   const data = filteredContents || contents!
-
-  console.log(data)
 
   return (
     <View style={defaultStyles.container}>
