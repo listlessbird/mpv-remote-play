@@ -36,10 +36,9 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   fullScreenContainer: {
-    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.background,
+    ...defaultStyles.container,
   },
   loadingMessage: {
     ...defaultStyles.text,

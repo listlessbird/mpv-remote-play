@@ -54,20 +54,6 @@ export function SharesScreen() {
     router.push(`/${shareName}`)
   }
 
-  if (isLoading) {
-    return <LoadingSpinner message="Loading shares..." />
-  }
-
-  if (error) {
-    return (
-      <QueryError
-        error={error}
-        onRetry={refetch}
-        message="Failed to load shares"
-      />
-    )
-  }
-
   return (
     <View style={defaultStyles.container}>
       {/* {status && (
@@ -91,6 +77,8 @@ export function SharesScreen() {
           shares={filteredShares}
           onSharePress={handleSharePress}
           isRefetching={isRefetching}
+          isLoading={isLoading}
+          error={error}
           refetch={refetch}
         />
 
@@ -104,14 +92,41 @@ function SharesList({
   shares,
   onSharePress,
   isRefetching,
+  isLoading,
+  error,
   refetch,
   ...flatListProps
 }: {
   shares: string[]
   onSharePress: (shareName: string) => void
   isRefetching: boolean
+  isLoading: boolean
+  error: Error | null
   refetch: () => void
 } & Partial<FlatListProps<string>>) {
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <LoadingSpinner message="Loading shares..." />
+      </View>
+    )
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorTitle}>Failed to load shares</Text>
+        <Text style={styles.errorMessage}>
+          Unable to connect to the server. Please check your backend URL in
+          settings and try again.
+        </Text>
+        <TouchableOpacity style={styles.retryButton} onPress={refetch}>
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
   return (
     <FlatList
       data={shares}
@@ -210,6 +225,44 @@ const styles = StyleSheet.create({
   listContainer: {
     paddingTop: 10,
     paddingBottom: 128,
+  },
+  loadingContainer: {
+    paddingVertical: 64,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorContainer: {
+    paddingVertical: 64,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorTitle: {
+    ...defaultStyles.text,
+    fontSize: fontSize.base,
+    fontWeight: "600",
+    marginBottom: 8,
+    textAlign: "center",
+    color: colors.text,
+  },
+  errorMessage: {
+    ...defaultStyles.text,
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: colors.text,
+    fontSize: fontSize.sm,
+    fontWeight: "600",
   },
   shareItem: {
     flexDirection: "row",

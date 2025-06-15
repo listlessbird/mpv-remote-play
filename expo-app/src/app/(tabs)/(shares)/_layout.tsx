@@ -14,7 +14,6 @@ export default function HomeLayout() {
           options={{
             ...StackScreen,
             headerTitle: "Shares",
-            headerTitleAlign: "center",
           }}
         />
         <Stack.Screen

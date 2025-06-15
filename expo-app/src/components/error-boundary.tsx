@@ -89,11 +89,10 @@ export function QueryError({ error, onRetry, message }: QueryErrorProps) {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-    backgroundColor: "rgba(0, 0, 0, 0.9)",
+    ...defaultStyles.container,
   },
   title: {
     ...defaultStyles.text,

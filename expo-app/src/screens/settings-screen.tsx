@@ -11,10 +11,14 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { apiClient } from "@/lib/api/api-client"
 import Slider from "@react-native-community/slider"
 import { Ionicons, MaterialIcons } from "@expo/vector-icons"
+import { useQueryClient } from "@tanstack/react-query"
+import { queryKeys } from "@/lib/queries"
+
+type ConnectionStatus = "idle" | "testing" | "success" | "error"
 
 export function SettingsScreen() {
   const {
@@ -27,16 +31,94 @@ export function SettingsScreen() {
     resetToDefaults,
   } = useSettingsStore()
 
-  const [serverUrl, setServerUrl] = useState(connection.serverUrl)
+  const queryClient = useQueryClient()
+  const [serverIp, setServerIp] = useState("")
+  const [serverPort, setServerPort] = useState("")
   const [isDiscovering, setIsDiscovering] = useState(false)
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>("idle")
+  const [connectionMessage, setConnectionMessage] = useState("")
 
-  const handleServerUrlSave = () => {
-    updateConnection({ serverUrl })
-    Alert.alert("Server URL Updated", "The server URL has been updated.")
+  useEffect(() => {
+    const url = connection.serverUrl.replace(/^https?:\/\//, "")
+    const [ip, port] = url.split(":")
+    setServerIp(ip || "")
+    setServerPort(port || "3000")
+  }, [connection.serverUrl])
+
+  const testConnection = async (url: string) => {
+    try {
+      setConnectionStatus("testing")
+      setConnectionMessage("Testing connection...")
+
+      const tempClient = {
+        ...apiClient,
+        baseUrl: url,
+      }
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+      try {
+        const response = await fetch(`${url}/api/status`, {
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+        })
+
+        clearTimeout(timeoutId)
+
+        if (response.ok) {
+          setConnectionStatus("success")
+          setConnectionMessage("Connection successful!")
+
+          queryClient.invalidateQueries({ queryKey: queryKeys.serverStatus })
+          queryClient.invalidateQueries({ queryKey: queryKeys.shares })
+          queryClient.removeQueries({ queryKey: queryKeys.shareContents("") })
+
+          return true
+        }
+
+        throw new Error(`Server responded with status ${response.status}`)
+      } catch (error) {
+        clearTimeout(timeoutId)
+        throw error
+      }
+    } catch (error) {
+      setConnectionStatus("error")
+      if (error instanceof Error && error.name === "AbortError") {
+        setConnectionMessage("Connection timed out")
+      } else if (error instanceof Error) {
+        setConnectionMessage(`Connection failed: ${error.message}`)
+      } else {
+        setConnectionMessage("Connection failed")
+      }
+      return false
+    }
+  }
+
+  const handleServerSave = async () => {
+    if (!serverIp.trim()) {
+      setConnectionStatus("error")
+      setConnectionMessage("Please enter a valid IP address")
+      return
+    }
+
+    const port = serverPort.trim() || "3000"
+    const newUrl = `http://${serverIp.trim()}:${port}`
+
+    const success = await testConnection(newUrl)
+    if (success) {
+      updateConnection({ serverUrl: newUrl })
+    }
   }
 
   const handleDiscoverServers = async () => {
-    // TODO: Implement discovery
+    setIsDiscovering(true)
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+    } finally {
+      setIsDiscovering(false)
+    }
   }
 
   const handleResetDefaults = () => {
@@ -50,15 +132,29 @@ export function SettingsScreen() {
           style: "destructive",
           onPress: () => {
             resetToDefaults()
-            setServerUrl(connection.serverUrl)
-            Alert.alert(
-              "Settings Reset",
-              "All settings have been reset to defaults."
-            )
+            const url = connection.serverUrl.replace(/^https?:\/\//, "")
+            const [ip, port] = url.split(":")
+            setServerIp(ip || "")
+            setServerPort(port || "3000")
+            setConnectionStatus("idle")
+            setConnectionMessage("")
           },
         },
       ]
     )
+  }
+
+  const getStatusColor = () => {
+    switch (connectionStatus) {
+      case "success":
+        return "#10b981"
+      case "error":
+        return "#ef4444"
+      case "testing":
+        return colors.primary
+      default:
+        return colors.textMuted
+    }
   }
 
   return (
@@ -68,70 +164,152 @@ export function SettingsScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Connection Settings</Text>
+        <Text style={styles.sectionTitle}>Connection</Text>
 
-        <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Server URL</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.textInput}
-              value={serverUrl}
-              onChangeText={setServerUrl}
-              placeholder="http://192.168.1.100:3000"
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+        <View style={styles.settingGroup}>
+          <Text style={styles.settingLabel}>Server Address</Text>
+          <Text style={styles.settingDescription}>
+            Enter your media server's IP address and port
+          </Text>
+
+          <View style={styles.serverInputContainer}>
+            <View style={styles.protocolContainer}>
+              <Text style={styles.protocolText}>http://</Text>
+            </View>
+
+            <View style={styles.ipInputContainer}>
+              <TextInput
+                style={styles.ipInput}
+                value={serverIp}
+                onChangeText={(text) => {
+                  setServerIp(text)
+                  setConnectionStatus("idle")
+                  setConnectionMessage("")
+                }}
+                placeholder="192.168.1.100"
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.colonContainer}>
+              <Text style={styles.colonText}>:</Text>
+            </View>
+
+            <View style={styles.portInputContainer}>
+              <TextInput
+                style={styles.portInput}
+                value={serverPort}
+                onChangeText={(text) => {
+                  setServerPort(text)
+                  setConnectionStatus("idle")
+                  setConnectionMessage("")
+                }}
+                placeholder="3000"
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="numeric"
+              />
+            </View>
+
             <TouchableOpacity
-              style={styles.inputButton}
-              onPress={handleServerUrlSave}
+              style={[
+                styles.saveButton,
+                connectionStatus === "testing" && styles.saveButtonDisabled,
+              ]}
+              onPress={handleServerSave}
+              disabled={connectionStatus === "testing"}
             >
-              <Ionicons name="checkmark" size={20} color={colors.primary} />
+              {connectionStatus === "testing" ? (
+                <MaterialIcons name="sync" size={20} color={colors.text} />
+              ) : (
+                <Ionicons name="checkmark" size={20} color={colors.text} />
+              )}
             </TouchableOpacity>
           </View>
+
+          {connectionMessage && (
+            <View style={styles.statusContainer}>
+              <View
+                style={[
+                  styles.statusIndicator,
+                  { backgroundColor: getStatusColor() },
+                ]}
+              />
+              <Text style={[styles.statusMessage, { color: getStatusColor() }]}>
+                {connectionMessage}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Auto Discovery</Text>
-          <View style={styles.switchContainer}>
-            <Switch
-              value={connection.autoDiscovery}
-              onValueChange={(value) =>
-                updateConnection({ autoDiscovery: value })
-              }
-              trackColor={{ false: colors.textMuted, true: colors.primary }}
-              thumbColor={colors.text}
-            />
+          <View style={styles.settingContent}>
+            <Text style={styles.settingLabel}>Auto Discovery</Text>
+            <Text style={styles.settingDescription}>
+              Automatically find servers on your network
+            </Text>
           </View>
+          <Switch
+            value={connection.autoDiscovery}
+            onValueChange={(value) =>
+              updateConnection({ autoDiscovery: value })
+            }
+            trackColor={{ false: colors.textMuted, true: colors.primary }}
+            thumbColor={colors.text}
+          />
         </View>
 
         <TouchableOpacity
-          style={[styles.button, isDiscovering && styles.buttonDisabled]}
+          style={[
+            styles.secondaryButton,
+            isDiscovering && styles.secondaryButtonDisabled,
+          ]}
           onPress={handleDiscoverServers}
           disabled={isDiscovering}
         >
-          <MaterialIcons name="search" size={20} color={colors.text} />
-          <Text style={styles.buttonText}>
+          <MaterialIcons
+            name="search"
+            size={20}
+            color={isDiscovering ? colors.textMuted : colors.text}
+          />
+          <Text
+            style={[
+              styles.secondaryButtonText,
+              isDiscovering && styles.secondaryButtonTextDisabled,
+            ]}
+          >
             {isDiscovering ? "Searching..." : "Discover Servers"}
           </Text>
         </TouchableOpacity>
 
         <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Show Connection Status</Text>
-          <View style={styles.switchContainer}>
-            <Switch
-              value={connection.showConnectionStatus}
-              onValueChange={(value) =>
-                updateConnection({ showConnectionStatus: value })
-              }
-              trackColor={{ false: colors.textMuted, true: colors.primary }}
-              thumbColor={colors.text}
-            />
+          <View style={styles.settingContent}>
+            <Text style={styles.settingLabel}>Show Connection Status</Text>
+            <Text style={styles.settingDescription}>
+              Display connection indicator in the app
+            </Text>
           </View>
+          <Switch
+            value={connection.showConnectionStatus}
+            onValueChange={(value) =>
+              updateConnection({ showConnectionStatus: value })
+            }
+            trackColor={{ false: colors.textMuted, true: colors.primary }}
+            thumbColor={colors.text}
+          />
         </View>
 
         <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Connection Timeout</Text>
+          <View style={styles.settingContent}>
+            <Text style={styles.settingLabel}>Connection Timeout</Text>
+            <Text style={styles.settingDescription}>
+              How long to wait for server response
+            </Text>
+          </View>
           <Text style={styles.settingValue}>
             {connection.connectionTimeout / 1000}s
           </Text>
@@ -139,74 +317,97 @@ export function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Playback Settings</Text>
+        <Text style={styles.sectionTitle}>Playback</Text>
 
-        <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Seek Forward Interval</Text>
-          <Text style={styles.settingValue}>
-            {playback.seekForwardInterval}s
+        <View style={styles.sliderGroup}>
+          <View style={styles.sliderHeader}>
+            <Text style={styles.settingLabel}>Seek Forward</Text>
+            <Text style={styles.settingValue}>
+              {playback.seekForwardInterval}s
+            </Text>
+          </View>
+          <Text style={styles.settingDescription}>
+            How many seconds to skip forward
           </Text>
+          <Slider
+            style={styles.slider}
+            value={playback.seekForwardInterval}
+            minimumValue={5}
+            maximumValue={60}
+            step={5}
+            onSlidingComplete={(value) =>
+              updatePlayback({ seekForwardInterval: value })
+            }
+            minimumTrackTintColor={colors.primary}
+            maximumTrackTintColor={colors.textMuted}
+            thumbTintColor={colors.primary}
+          />
+          <View style={styles.sliderLabels}>
+            <Text style={styles.sliderLabel}>5s</Text>
+            <Text style={styles.sliderLabel}>60s</Text>
+          </View>
         </View>
-        <Slider
-          style={styles.slider}
-          value={playback.seekForwardInterval}
-          minimumValue={5}
-          maximumValue={60}
-          step={5}
-          onSlidingComplete={(value) =>
-            updatePlayback({ seekForwardInterval: value })
-          }
-          minimumTrackTintColor={colors.primary}
-          maximumTrackTintColor={colors.textMuted}
-          thumbTintColor={colors.primary}
-        />
 
-        <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Seek Backward Interval</Text>
-          <Text style={styles.settingValue}>
-            {playback.seekBackwardInterval}s
+        <View style={styles.sliderGroup}>
+          <View style={styles.sliderHeader}>
+            <Text style={styles.settingLabel}>Seek Backward</Text>
+            <Text style={styles.settingValue}>
+              {playback.seekBackwardInterval}s
+            </Text>
+          </View>
+          <Text style={styles.settingDescription}>
+            How many seconds to skip backward
           </Text>
+          <Slider
+            style={styles.slider}
+            value={playback.seekBackwardInterval}
+            minimumValue={5}
+            maximumValue={60}
+            step={5}
+            onSlidingComplete={(value) =>
+              updatePlayback({ seekBackwardInterval: value })
+            }
+            minimumTrackTintColor={colors.primary}
+            maximumTrackTintColor={colors.textMuted}
+            thumbTintColor={colors.primary}
+          />
+          <View style={styles.sliderLabels}>
+            <Text style={styles.sliderLabel}>5s</Text>
+            <Text style={styles.sliderLabel}>60s</Text>
+          </View>
         </View>
-        <Slider
-          style={styles.slider}
-          value={playback.seekBackwardInterval}
-          minimumValue={5}
-          maximumValue={60}
-          step={5}
-          onSlidingComplete={(value) =>
-            updatePlayback({ seekBackwardInterval: value })
-          }
-          minimumTrackTintColor={colors.primary}
-          maximumTrackTintColor={colors.textMuted}
-          thumbTintColor={colors.primary}
-        />
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Sync & Performance</Text>
 
         <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Background Sync</Text>
-          <View style={styles.switchContainer}>
-            <Switch
-              value={sync.backgroundSyncEnabled}
-              onValueChange={(value) =>
-                updateSync({ backgroundSyncEnabled: value })
-              }
-              trackColor={{ false: colors.textMuted, true: colors.primary }}
-              thumbColor={colors.text}
-            />
+          <View style={styles.settingContent}>
+            <Text style={styles.settingLabel}>Background Sync</Text>
+            <Text style={styles.settingDescription}>
+              Keep data synchronized when app is in background
+            </Text>
           </View>
+          <Switch
+            value={sync.backgroundSyncEnabled}
+            onValueChange={(value) =>
+              updateSync({ backgroundSyncEnabled: value })
+            }
+            trackColor={{ false: colors.textMuted, true: colors.primary }}
+            thumbColor={colors.text}
+          />
         </View>
       </View>
 
-      <TouchableOpacity
-        style={[styles.button, styles.dangerButton]}
-        onPress={handleResetDefaults}
-      >
-        <MaterialIcons name="restore" size={20} color={colors.text} />
-        <Text style={styles.buttonText}>Reset to Defaults</Text>
-      </TouchableOpacity>
+      <View style={styles.dangerSection}>
+        <TouchableOpacity
+          style={styles.dangerButton}
+          onPress={handleResetDefaults}
+        >
+          <MaterialIcons name="restore" size={20} color="#fff" />
+          <Text style={styles.dangerButtonText}>Reset to Defaults</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   )
 }
@@ -224,103 +425,186 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 32,
   },
+  dangerSection: {
+    marginTop: 20,
+    marginBottom: 32,
+  },
   sectionTitle: {
     ...defaultStyles.text,
     fontSize: fontSize.lg,
     fontWeight: "700",
-    marginBottom: 16,
+    marginBottom: 20,
+    color: colors.text,
+  },
+  settingGroup: {
+    marginBottom: 24,
   },
   settingItem: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
+    alignItems: "flex-start",
+    marginBottom: 20,
+    paddingVertical: 4,
+  },
+  settingContent: {
+    flex: 1,
+    marginRight: 16,
   },
   settingLabel: {
     ...defaultStyles.text,
     fontSize: fontSize.base,
-    flex: 1,
+    fontWeight: "600",
+    marginBottom: 4,
+    color: colors.text,
+  },
+  settingDescription: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    lineHeight: 18,
   },
   settingValue: {
-    ...defaultStyles.text,
     fontSize: fontSize.base,
-    color: colors.textMuted,
-    minWidth: 40,
+    color: colors.primary,
+    fontWeight: "600",
+    minWidth: 50,
     textAlign: "right",
   },
-  switchContainer: {
-    marginLeft: 16,
-  },
-  inputContainer: {
-    flex: 1,
+  serverInputContainer: {
     flexDirection: "row",
-    marginLeft: 16,
-  },
-  textInput: {
-    flex: 1,
-    ...defaultStyles.text,
-    fontSize: fontSize.sm,
+    alignItems: "center",
+    marginTop: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.textMuted,
-    borderRadius: 8,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    overflow: "hidden",
+  },
+  protocolContainer: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+  },
+  protocolText: {
+    fontSize: fontSize.base,
+    color: colors.textMuted,
+    fontWeight: "500",
+  },
+  ipInputContainer: {
+    flex: 1,
+  },
+  ipInput: {
+    fontSize: fontSize.base,
+    color: colors.text,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    textAlign: "left",
+  },
+  colonContainer: {
+    paddingHorizontal: 4,
+  },
+  colonText: {
+    fontSize: fontSize.base,
+    color: colors.textMuted,
+    fontWeight: "500",
+  },
+  portInputContainer: {
+    width: 80,
+  },
+  portInput: {
+    fontSize: fontSize.base,
+    color: colors.text,
+    paddingHorizontal: 8,
+    paddingVertical: 14,
+    textAlign: "center",
+  },
+  saveButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 17,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "stretch",
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  statusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    paddingHorizontal: 4,
+  },
+  statusIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     marginRight: 8,
   },
-  inputButton: {
-    justifyContent: "center",
+  statusMessage: {
+    fontSize: fontSize.sm,
+    fontWeight: "500",
+  },
+  secondaryButton: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  secondaryButtonDisabled: {
+    opacity: 0.5,
+  },
+  secondaryButtonText: {
+    fontSize: fontSize.base,
+    color: colors.text,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  secondaryButtonTextDisabled: {
+    color: colors.textMuted,
+  },
+  sliderGroup: {
+    marginBottom: 24,
+  },
+  sliderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
   },
   slider: {
     width: "100%",
     height: 40,
-    marginBottom: 16,
+    marginTop: 12,
+    marginBottom: 8,
   },
-  segmentedControl: {
+  sliderLabels: {
     flexDirection: "row",
-    borderWidth: 1,
-    borderColor: colors.textMuted,
-    borderRadius: 8,
-    overflow: "hidden",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
   },
-  segmentButton: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  segmentButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  segmentText: {
-    ...defaultStyles.text,
-    fontSize: fontSize.sm,
+  sliderLabel: {
+    fontSize: fontSize.xs,
     color: colors.textMuted,
   },
-  segmentTextActive: {
-    color: colors.text,
-    fontWeight: "600",
-  },
-  button: {
+  dangerButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
+    backgroundColor: "#dc2626",
+    paddingVertical: 16,
     paddingHorizontal: 24,
-    borderRadius: 8,
-    marginVertical: 8,
+    borderRadius: 12,
+    marginTop: 8,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    ...defaultStyles.text,
+  dangerButtonText: {
     fontSize: fontSize.base,
+    color: "#fff",
     fontWeight: "600",
     marginLeft: 8,
-  },
-  dangerButton: {
-    backgroundColor: "#dc2626",
   },
 })
