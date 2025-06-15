@@ -7,9 +7,6 @@
 			"path": "samples"
 		},
 		{
-			"path": "server"
-		},
-		{
 			"path": "mpv-remote-server"
 		}
 	],
