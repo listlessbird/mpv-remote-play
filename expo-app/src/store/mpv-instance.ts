@@ -10,6 +10,7 @@ interface MPVInstanceStore {
   lastValidation: Date | null
   validateInstance: () => Promise<boolean>
   clearIfInvalid: () => Promise<void>
+  clearActiveInstance: () => void
 }
 
 export const useMPVInstanceStore = create<MPVInstanceStore>()(
@@ -46,6 +47,9 @@ export const useMPVInstanceStore = create<MPVInstanceStore>()(
       if (!isValid) {
         set({ activeInstance: null })
       }
+    },
+    clearActiveInstance: () => {
+      set({ activeInstance: null })
     },
   }))
 )

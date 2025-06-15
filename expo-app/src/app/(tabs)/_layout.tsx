@@ -1,14 +1,40 @@
+import React, { useEffect, useState } from "react"
 import { colors, fontSize } from "@/lib/constants/tokens"
 import { BlurView } from "expo-blur"
-import { Tabs } from "expo-router"
+import { Tabs, usePathname, useRouter } from "expo-router"
 import { StyleSheet, Platform } from "react-native"
 import { FontAwesome, FontAwesome6 } from "@expo/vector-icons"
 import { FloatingPlayer } from "@/components/floating-player"
-import { useActiveTrack } from "react-native-track-player"
+import TrackPlayer, {
+  type Track,
+  useActiveTrack,
+} from "react-native-track-player"
 
 export default function TabLayout() {
   const activeTrack = useActiveTrack()
-  const showFloatingPlayer = !!activeTrack
+
+  const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    const loadCurrentTrack = async () => {
+      const index = await TrackPlayer.getActiveTrackIndex()
+      const queue = await TrackPlayer.getQueue()
+
+      if (typeof index === "number" && queue[index]) {
+        setCurrentTrack(queue[index])
+      }
+    }
+
+    loadCurrentTrack()
+
+    const interval = setInterval(loadCurrentTrack, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const displayTrack = currentTrack || activeTrack
+
+  const pathname = usePathname()
 
   return (
     <>
@@ -72,16 +98,14 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-      {showFloatingPlayer && (
-        <FloatingPlayer
-          style={{
-            position: "absolute",
-            bottom: 78,
-            left: 8,
-            right: 8,
-          }}
-        />
-      )}
+      <FloatingPlayer
+        style={{
+          position: "absolute",
+          bottom: 78,
+          left: 8,
+          right: 8,
+        }}
+      />
     </>
   )
 }

@@ -10,6 +10,7 @@ export const queryKeys = {
     shareName,
     path || "",
   ],
+  mpvInstances: ["mpv", "instances"],
 }
 
 export function useServerStatus() {
@@ -36,5 +37,26 @@ export function useShareContents(shareName: string, path?: string) {
     queryKey: queryKeys.shareContents(shareName, path),
     queryFn: () => apiClient.getShareContents(shareName, path),
     enabled: !!shareName,
+  })
+}
+
+export function useMPVInstances() {
+  return useQuery({
+    queryKey: queryKeys.mpvInstances,
+    queryFn: () => apiClient.getMPVInstances(),
+    refetchInterval: 1000 * 30, // Refetch every 30 seconds
+    retry: 2,
+    retryDelay: 1000,
+  })
+}
+
+export function useRemoveMPVInstance() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (instanceId: string) => apiClient.removeMPVInstance(instanceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.mpvInstances })
+    },
   })
 }

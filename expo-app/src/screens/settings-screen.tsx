@@ -16,7 +16,9 @@ import { apiClient } from "@/lib/api/api-client"
 import Slider from "@react-native-community/slider"
 import { Ionicons, MaterialIcons } from "@expo/vector-icons"
 import { useQueryClient } from "@tanstack/react-query"
-import { queryKeys } from "@/lib/queries"
+import { queryKeys, useMPVInstances, useRemoveMPVInstance } from "@/lib/queries"
+import { useMPVInstanceStore } from "@/store/mpv-instance"
+import type { MPVInstance } from "@/lib/api/api-types"
 
 type ConnectionStatus = "idle" | "testing" | "success" | "error"
 
@@ -38,6 +40,20 @@ export function SettingsScreen() {
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("idle")
   const [connectionMessage, setConnectionMessage] = useState("")
+  const {
+    activeInstance,
+    setActiveInstance,
+    clearActiveInstance,
+    validateInstance,
+    isValidating,
+  } = useMPVInstanceStore()
+  const {
+    data: instances = [],
+    isLoading: isLoadingInstances,
+    error: instancesError,
+    refetch: refetchInstances,
+  } = useMPVInstances()
+  const removeMPVInstanceMutation = useRemoveMPVInstance()
 
   useEffect(() => {
     const url = connection.serverUrl.replace(/^https?:\/\//, "")
@@ -73,6 +89,7 @@ export function SettingsScreen() {
 
           queryClient.invalidateQueries({ queryKey: queryKeys.serverStatus })
           queryClient.invalidateQueries({ queryKey: queryKeys.shares })
+          queryClient.invalidateQueries({ queryKey: queryKeys.mpvInstances })
           queryClient.removeQueries({ queryKey: queryKeys.shareContents("") })
 
           return true
@@ -119,6 +136,93 @@ export function SettingsScreen() {
     } finally {
       setIsDiscovering(false)
     }
+  }
+
+  const handleRemoveInstance = async (instanceId: string) => {
+    Alert.alert(
+      "Remove Instance",
+      "Are you sure you want to remove this MPV instance? This will terminate the player.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await removeMPVInstanceMutation.mutateAsync(instanceId)
+              if (activeInstance?.id === instanceId) {
+                clearActiveInstance()
+              }
+            } catch (error) {
+              Alert.alert(
+                "Error",
+                error instanceof Error
+                  ? error.message
+                  : "Failed to remove instance"
+              )
+            }
+          },
+        },
+      ]
+    )
+  }
+
+  const handleValidateInstance = async (instance: MPVInstance) => {
+    // First check against current React Query data
+    const existsInCache = instances.some(
+      (i) => i.id === instance.id && i.status === "running"
+    )
+
+    if (existsInCache) {
+      Alert.alert(
+        "Instance Valid",
+        "This MPV instance is running and accessible."
+      )
+      return
+    }
+
+    // If not found in cache, refresh and check again
+    Alert.alert(
+      "Validating Instance",
+      "Instance not found in cache. Refreshing data to double-check...",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Refresh & Validate",
+          onPress: async () => {
+            try {
+              const refreshedData = await refetchInstances()
+              const existsAfterRefresh = refreshedData.data?.some(
+                (i) => i.id === instance.id && i.status === "running"
+              )
+
+              if (existsAfterRefresh) {
+                Alert.alert(
+                  "Instance Valid",
+                  "This MPV instance is running and accessible."
+                )
+              } else {
+                Alert.alert(
+                  "Instance Invalid",
+                  "This MPV instance is no longer running or accessible."
+                )
+                // Clear active instance if it's the one being validated
+                if (activeInstance?.id === instance.id) {
+                  clearActiveInstance()
+                }
+              }
+            } catch (error) {
+              Alert.alert(
+                "Validation Error",
+                error instanceof Error
+                  ? error.message
+                  : "Failed to validate instance"
+              )
+            }
+          },
+        },
+      ]
+    )
   }
 
   const handleResetDefaults = () => {
@@ -313,6 +417,145 @@ export function SettingsScreen() {
           <Text style={styles.settingValue}>
             {connection.connectionTimeout / 1000}s
           </Text>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>MPV Instances</Text>
+
+        <View style={styles.settingGroup}>
+          <View style={styles.instancesHeader}>
+            <Text style={styles.settingDescription}>
+              Manage connected MPV player instances
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.refreshButton,
+                isLoadingInstances && styles.refreshButtonDisabled,
+              ]}
+              onPress={() => refetchInstances()}
+              disabled={isLoadingInstances}
+            >
+              <MaterialIcons
+                name="refresh"
+                size={20}
+                color={isLoadingInstances ? colors.textMuted : colors.text}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {instancesError && (
+            <View style={styles.errorContainer}>
+              <MaterialIcons name="error" size={16} color="#ef4444" />
+              <Text style={styles.errorText}>
+                {instancesError instanceof Error
+                  ? instancesError.message
+                  : "Failed to load instances"}
+              </Text>
+            </View>
+          )}
+
+          {isLoadingInstances ? (
+            <View style={styles.loadingContainer}>
+              <MaterialIcons name="sync" size={20} color={colors.primary} />
+              <Text style={styles.loadingText}>Loading instances...</Text>
+            </View>
+          ) : instances.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="tv-off" size={32} color={colors.textMuted} />
+              <Text style={styles.emptyText}>No MPV instances found</Text>
+              <Text style={styles.emptySubtext}>
+                Start playing media to see instances here
+              </Text>
+            </View>
+          ) : (
+            instances.map((instance) => (
+              <View key={instance.id} style={styles.instanceItem}>
+                <View style={styles.instanceInfo}>
+                  <View style={styles.instanceHeader}>
+                    <Text style={styles.instanceId}>
+                      {instance.clientName ||
+                        `Instance ${instance.id.slice(0, 8)}`}
+                    </Text>
+                    <View style={styles.instanceStatusContainer}>
+                      <View
+                        style={[
+                          styles.instanceStatusDot,
+                          {
+                            backgroundColor:
+                              instance.status === "running"
+                                ? "#10b981"
+                                : "#ef4444",
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.instanceStatus,
+                          {
+                            color:
+                              instance.status === "running"
+                                ? "#10b981"
+                                : "#ef4444",
+                          },
+                        ]}
+                      >
+                        {instance.status}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.instanceDetails}>ID: {instance.id}</Text>
+                  <Text style={styles.instanceDetails}>
+                    Last seen: {new Date(instance.lastSeen).toLocaleString()}
+                  </Text>
+                  {activeInstance?.id === instance.id && (
+                    <Text style={styles.activeInstanceLabel}>
+                      • Currently Active
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.instanceActions}>
+                  <TouchableOpacity
+                    style={styles.instanceActionButton}
+                    onPress={() => handleValidateInstance(instance)}
+                  >
+                    <MaterialIcons
+                      name="check-circle"
+                      size={18}
+                      color={colors.primary}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.instanceActionButton}
+                    onPress={() => setActiveInstance(instance)}
+                  >
+                    <MaterialIcons
+                      name={
+                        activeInstance?.id === instance.id
+                          ? "radio-button-checked"
+                          : "radio-button-unchecked"
+                      }
+                      size={18}
+                      color={
+                        activeInstance?.id === instance.id
+                          ? colors.primary
+                          : colors.textMuted
+                      }
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.instanceActionButton,
+                      styles.dangerActionButton,
+                    ]}
+                    onPress={() => handleRemoveInstance(instance.id)}
+                  >
+                    <MaterialIcons name="delete" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
         </View>
       </View>
 
@@ -606,5 +849,123 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     marginLeft: 8,
+  },
+  instancesHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  refreshButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+  },
+  refreshButtonDisabled: {
+    opacity: 0.5,
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: fontSize.sm,
+    color: "#ef4444",
+    marginLeft: 8,
+    flex: 1,
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: fontSize.base,
+    color: colors.textMuted,
+    marginLeft: 8,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    padding: 32,
+  },
+  emptyText: {
+    fontSize: fontSize.base,
+    color: colors.textMuted,
+    fontWeight: "600",
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  emptySubtext: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  instanceItem: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  instanceInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  instanceHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  instanceId: {
+    fontSize: fontSize.base,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  instanceStatusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  instanceStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  instanceStatus: {
+    fontSize: fontSize.sm,
+    fontWeight: "500",
+    textTransform: "capitalize",
+  },
+  instanceDetails: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    marginBottom: 2,
+  },
+  activeInstanceLabel: {
+    fontSize: fontSize.xs,
+    color: colors.primary,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  instanceActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  instanceActionButton: {
+    padding: 8,
+    marginLeft: 4,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+  },
+  dangerActionButton: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
   },
 })

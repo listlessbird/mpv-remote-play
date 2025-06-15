@@ -1,27 +1,26 @@
+import React from "react"
 import { unknownVideoImageUri } from "@/lib/constants/images"
-import { colors, fontSize } from "@/lib/constants/tokens"
+import { colors } from "@/lib/constants/tokens"
 import { defaultStyles } from "@/styles"
 import { Image } from "expo-image"
-import { useMemo } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   type ViewStyle,
-  ViewProps,
+  type ViewProps,
 } from "react-native"
 import TrackPlayer, {
   useActiveTrack,
   useIsPlaying,
+  type Track,
 } from "react-native-track-player"
 import { FontAwesome, FontAwesome6 } from "@expo/vector-icons"
 import { usePlayerCommands } from "@/hooks/use-player-commands"
-import { useRouter } from "expo-router"
-
-type PlayerControlsProps = {
-  style?: ViewStyle
-}
+import { useTrackSync } from "@/hooks/use-track-sync"
+import { useRouter, usePathname } from "expo-router"
 
 type PlayerButtonProps = {
   style?: ViewStyle
@@ -30,31 +29,22 @@ type PlayerButtonProps = {
 
 function PlayPauseButton({ iconSize, style }: PlayerButtonProps) {
   const { playing } = useIsPlaying()
+  const { mpvState } = useTrackSync()
   const { play, pause } = usePlayerCommands()
+
+  const isPlaying = mpvState ? !mpvState.paused : playing
 
   return (
     <View style={[{ height: iconSize }, style]}>
       <TouchableOpacity
         activeOpacity={0.85}
-        onPress={() => (playing ? pause() : play())}
+        onPress={() => (isPlaying ? pause() : play())}
       >
         <FontAwesome
-          name={playing ? "pause" : "play"}
+          name={isPlaying ? "pause" : "play"}
           size={iconSize}
           color={colors.text}
         />
-      </TouchableOpacity>
-    </View>
-  )
-}
-
-function SkipToPreviousButton({ iconSize = 30, style }: PlayerButtonProps) {
-  const { skipToPrevious } = usePlayerCommands()
-
-  return (
-    <View style={[{ height: iconSize }, style]}>
-      <TouchableOpacity activeOpacity={0.7} onPress={() => skipToPrevious()}>
-        <FontAwesome6 name="backward" size={iconSize} color={colors.text} />
       </TouchableOpacity>
     </View>
   )
@@ -86,49 +76,57 @@ function StopButton({ iconSize = 30, style }: PlayerButtonProps) {
 
 export function FloatingPlayer({ style }: ViewProps) {
   const activeTrack = useActiveTrack()
+  const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
   const router = useRouter()
+  const pathname = usePathname()
 
-  const displayedTrack = useMemo(() => {
-    // if (!activeTrack) return null
+  useEffect(() => {
+    const loadCurrentTrack = async () => {
+      const index = await TrackPlayer.getActiveTrackIndex()
+      const queue = await TrackPlayer.getQueue()
 
-    // return {
-    //   title: activeTrack.title || "Unknown Track",
-    //   artwork: activeTrack.artwork,
-    // }
-
-    const sample = {
-      title: "Sample Track",
+      if (typeof index === "number" && queue[index]) {
+        setCurrentTrack(queue[index])
+      }
     }
 
-    return sample
-  }, [activeTrack])
+    loadCurrentTrack()
 
-  if (!displayedTrack) return null
+    const interval = setInterval(loadCurrentTrack, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
-  const handlePress = () => {
+  const displayTrack = currentTrack || activeTrack
+
+  const handlePress = useCallback(() => {
     router.push("/player")
-  }
+  }, [router])
+
+  if (!displayTrack || pathname === "/player") return null
 
   return (
-    <TouchableOpacity activeOpacity={0.9} style={[styles.container, style]}>
-      <>
-        <Image
-          source={{
-            uri: displayedTrack.artwork ?? unknownVideoImageUri,
-          }}
-          style={styles.trackArtwork}
-        />
-        <View style={styles.trackTitleContainer}>
-          <Text style={styles.trackTitle}>{displayedTrack.title}</Text>
-        </View>
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={[styles.container, style]}
+      onPress={handlePress}
+    >
+      <Image
+        source={{
+          uri: displayTrack.artwork ?? unknownVideoImageUri,
+        }}
+        style={styles.trackArtwork}
+      />
+      <View style={styles.trackTitleContainer}>
+        <Text style={styles.trackTitle} numberOfLines={2}>
+          {displayTrack.title || "Unknown Track"}
+        </Text>
+      </View>
 
-        <View style={styles.trackControlsContainer}>
-          {/* <SkipToPreviousButton iconSize={22} /> */}
-          <StopButton iconSize={22} />
-          <PlayPauseButton iconSize={22} />
-          <SkipToNextButton iconSize={22} />
-        </View>
-      </>
+      <View style={styles.trackControlsContainer}>
+        <StopButton iconSize={22} />
+        <PlayPauseButton iconSize={22} />
+        <SkipToNextButton iconSize={22} />
+      </View>
     </TouchableOpacity>
   )
 }
@@ -149,7 +147,7 @@ const styles = StyleSheet.create({
   },
   trackTitle: {
     ...defaultStyles.text,
-    fontSize: 18,
+    fontSize: 14,
     paddingLeft: 10,
     fontWeight: "600",
   },

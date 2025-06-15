@@ -17,6 +17,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Pressable,
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import TrackPlayer, {
@@ -179,7 +180,7 @@ export function PlayerScreen() {
             onValueChange={handleSeekChange}
             onSlidingComplete={handleSeekEnd}
             minimumTrackTintColor={colors.primary}
-            maximumTrackTintColor={"rgba(255, 255, 255, 0.2)"}
+            maximumTrackTintColor={"rgba(255, 255, 255, 0.15)"}
             thumbTintColor={colors.primary}
           />
           <View style={styles.timeLabels}>
@@ -189,39 +190,76 @@ export function PlayerScreen() {
         </View>
 
         <View style={styles.controlsSection}>
-          <TouchableOpacity
+          <Pressable
             onPress={skipToPrevious}
-            style={styles.controlButton}
+            style={({ pressed }) => [
+              styles.controlButton,
+              pressed && styles.controlButtonPressed,
+            ]}
           >
-            <FontAwesome6 name="backward-step" size={32} color={colors.text} />
-          </TouchableOpacity>
+            <View style={styles.controlButtonInner}>
+              <FontAwesome6
+                name="backward-step"
+                size={28}
+                color={colors.text}
+              />
+            </View>
+          </Pressable>
 
-          <TouchableOpacity
+          <Pressable
             onPress={handlePlayPause}
-            style={styles.playPauseButton}
+            style={({ pressed }) => [
+              styles.playPauseButton,
+              pressed && styles.playPauseButtonPressed,
+            ]}
           >
-            <FontAwesome
-              name={playing ? "pause" : "play"}
-              size={40}
-              color={colors.text}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={skipToNext} style={styles.controlButton}>
-            <FontAwesome6 name="forward-step" size={32} color={colors.text} />
-          </TouchableOpacity>
+            <LinearGradient
+              colors={[colors.primary, "#e63946"]}
+              style={styles.playPauseGradient}
+            >
+              <FontAwesome
+                name={playing ? "pause" : "play"}
+                size={36}
+                color="#ffffff"
+                style={playing ? {} : { marginLeft: 4 }}
+              />
+            </LinearGradient>
+          </Pressable>
+
+          <Pressable
+            onPress={skipToNext}
+            style={({ pressed }) => [
+              styles.controlButton,
+              pressed && styles.controlButtonPressed,
+            ]}
+          >
+            <View style={styles.controlButtonInner}>
+              <FontAwesome6 name="forward-step" size={28} color={colors.text} />
+            </View>
+          </Pressable>
         </View>
 
         <View style={styles.secondaryControls}>
-          <TouchableOpacity onPress={stop} style={styles.controlButton}>
-            <FontAwesome6 name="stop" size={24} color={colors.textMuted} />
-          </TouchableOpacity>
+          <Pressable
+            onPress={stop}
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              pressed && styles.secondaryButtonPressed,
+            ]}
+          >
+            <View style={styles.secondaryButtonInner}>
+              <FontAwesome6 name="stop" size={20} color={colors.textMuted} />
+            </View>
+          </Pressable>
 
           <View style={styles.volumeContainer}>
-            <Ionicons
-              name={volume > 0 ? "volume-medium" : "volume-mute"}
-              size={24}
-              color={colors.textMuted}
-            />
+            <View style={styles.volumeIconContainer}>
+              <Ionicons
+                name={volume > 0 ? "volume-medium" : "volume-mute"}
+                size={20}
+                color={colors.textMuted}
+              />
+            </View>
             <Slider
               style={styles.volumeSlider}
               value={volume}
@@ -229,21 +267,26 @@ export function PlayerScreen() {
               maximumValue={1}
               onValueChange={handleVolumeChange}
               minimumTrackTintColor={colors.primary}
-              maximumTrackTintColor={"rgba(255, 255, 255, 0.2)"}
+              maximumTrackTintColor={"rgba(255, 255, 255, 0.15)"}
               thumbTintColor={colors.primary}
             />
           </View>
 
-          <TouchableOpacity
-            style={styles.secondaryButton}
+          <Pressable
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              pressed && styles.secondaryButtonPressed,
+            ]}
             onPress={handleTrackSelectorOpen}
           >
-            <MaterialCommunityIcons
-              name="playlist-music"
-              size={24}
-              color={colors.textMuted}
-            />
-          </TouchableOpacity>
+            <View style={styles.secondaryButtonInner}>
+              <MaterialCommunityIcons
+                name="playlist-music"
+                size={20}
+                color={colors.textMuted}
+              />
+            </View>
+          </Pressable>
         </View>
       </ScrollView>
 
@@ -271,13 +314,13 @@ const styles = StyleSheet.create({
   artworkContainer: {
     width: screenWidth * 0.8,
     height: screenWidth * 0.8,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.44,
-    shadowRadius: 10.32,
-    elevation: 16,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 20,
   },
   artwork: {
     width: "100%",
@@ -292,81 +335,137 @@ const styles = StyleSheet.create({
   },
   infoSection: {
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: 36,
   },
   title: {
     ...defaultStyles.text,
     fontSize: fontSize.lg,
-    fontWeight: "700",
+    fontWeight: "800",
     textAlign: "center",
     marginBottom: 8,
+    lineHeight: fontSize.lg * 1.2,
   },
   artist: {
     ...defaultStyles.text,
     fontSize: fontSize.base,
     color: colors.textMuted,
     textAlign: "center",
+    fontWeight: "500",
   },
   progressSection: {
-    marginBottom: 40,
+    marginBottom: 44,
   },
   progressSlider: {
     width: "100%",
-    height: 40,
+    height: 44,
   },
   timeLabels: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: -8,
+    marginTop: -4,
+    paddingHorizontal: 4,
   },
   timeText: {
     ...defaultStyles.text,
-    fontSize: fontSize.xs,
+    fontSize: fontSize.sm,
     color: colors.textMuted,
+    fontWeight: "600",
   },
   controlsSection: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 48,
-    gap: 48,
+    marginBottom: 52,
+    gap: 32,
   },
   controlButton: {
-    padding: 12,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  controlButtonInner: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 32,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+  },
+  controlButtonPressed: {
+    transform: [{ scale: 0.92 }],
   },
   playPauseButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.primary,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: colors.primary,
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 8,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  playPauseGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  playPauseButtonPressed: {
+    transform: [{ scale: 0.94 }],
   },
   secondaryControls: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: 8,
   },
   secondaryButton: {
-    padding: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  secondaryButtonInner: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  secondaryButtonPressed: {
+    transform: [{ scale: 0.9 }],
   },
   volumeContainer: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    marginHorizontal: 16,
+    marginHorizontal: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  volumeIconContainer: {
+    marginRight: 12,
   },
   volumeSlider: {
     flex: 1,
-    marginLeft: 12,
-    height: 40,
+    height: 32,
   },
 })

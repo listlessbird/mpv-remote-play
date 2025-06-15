@@ -7,7 +7,6 @@ import type {
   ShareContents,
   TracksResponse,
 } from "@/lib/api/api-types"
-import { API_BASE_URL } from "@/lib/constants/constants"
 import { fetch, type FetchRequestInit } from "expo/fetch"
 import { useSettingsStore } from "@/store/settings"
 
@@ -111,6 +110,13 @@ class ApiClient {
       }
     )
   }
+
+  async removeMPVInstance(instanceId: string) {
+    return this.request<{ message: string }>(`/api/instances/${instanceId}`, {
+      method: "DELETE",
+    })
+  }
+
   async discover() {
     // TODO: Implement discovery
     return []
