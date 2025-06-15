@@ -9,7 +9,10 @@ class Settings(BaseSettings):
     }
     thumbnails_dir: Path = Path.cwd() / "thumbnails"
     cache_file: Path = Path.cwd() / "media-cache.json"
-    media_shares: dict[str, str] = {"media": "E:/dls/cdrama"}
+    media_shares: dict[str, str] = {
+        "media": "E:/dls/cdrama",
+        "samples": "D:/mpv-play/samples",
+    }
 
     model_config = SettingsConfigDict(
         env_file=".env",

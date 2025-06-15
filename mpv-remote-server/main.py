@@ -59,15 +59,27 @@ async def create_instance(body: Dict = {}):
     all_instances = await mpv_manager.get_all_instances()
     running_instances = [i for i in all_instances if i.status == "running"]
 
-    if running_instances and media_file is not None:
+    if running_instances:
         running_instance_id = running_instances[0].id
-        await mpv_manager.send_command(
-            running_instance_id, MPVCommand(command=["loadfile", media_file], **{})
-        )
-        return {
-            "instanceId": running_instance_id,
-            "message": "MPV instance already running",
-        }
+
+        if media_file is not None:
+            try:
+                await mpv_manager.send_command(
+                    running_instance_id,
+                    MPVCommand(command=["loadfile", media_file], **{}),
+                )
+                return {
+                    "instanceId": running_instance_id,
+                    "message": "Reused existing MPV instance",
+                }
+            except Exception as error:
+                print(f"Failed to send command to existing instance: {error}")
+                print("Creating new instance")
+        else:
+            return {
+                "instanceId": running_instance_id,
+                "message": "Reused existing MPV instance",
+            }
 
     try:
         instance_id = await mpv_manager.create_instance(media_file)
