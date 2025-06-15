@@ -1,5 +1,5 @@
 import type { Track } from "@/lib/api/api-types"
-import { API_BASE_URL } from "@/lib/constants/constants"
+import { useSettingsStore } from "@/store/settings"
 import TrackPlayer, { type Track as RNTPTrack } from "react-native-track-player"
 import { create } from "zustand"
 interface PlaylistStore {
@@ -39,7 +39,9 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
         artist: track.playlist || "Unknown Playlist",
         artwork: track.thumbnail.startsWith("http")
           ? track.thumbnail
-          : `${API_BASE_URL}/api/thumbnails/${track.id}`,
+          : `${
+              useSettingsStore.getState().connection.serverUrl
+            }/api/thumbnails/${track.id}`,
         duration: track.duration,
       }))
 
