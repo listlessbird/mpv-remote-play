@@ -1,0 +1,4 @@
+thumbnails/
+.venv/
+__pycache__/
+media-cache.json

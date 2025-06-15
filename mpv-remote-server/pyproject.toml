@@ -1,0 +1,18 @@
+[project]
+name = "mpv-remote-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aiofiles>=24.1.0",
+    "fastapi[standard]>=0.115.12",
+    "pillow>=11.2.1",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.9.1",
+    "watchdog>=6.0.0",
+]
+[tool.pyright]
+exclude = [".venv", "**/__pycache__"]
+venvPath = "."
+venv = ".venv"
