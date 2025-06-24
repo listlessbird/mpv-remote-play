@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>WebSocket Audio Stream Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .controls {
+            margin: 20px 0;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px 15px;
+            font-size: 14px;
+        }
+
+        .audio-info {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>MPV WebSocket Audio Stream Test</h1>
+
+    <div class="controls">
+        <button id="startBtn">Start Audio Stream</button>
+        <button id="playBtn" disabled>Play MPV</button>
+        <button id="pauseBtn" disabled>Pause MPV</button>
+        <button id="stopBtn" disabled>Stop Stream</button>
+    </div>
+
+    <div class="audio-info">
+        <h3>Audio Info</h3>
+        <div>Status: <span id="audioStatus">Not connected</span></div>
+        <div>Sample Rate: <span id="sampleRate">-</span></div>
+        <div>Channels: <span id="channels">-</span></div>
+        <div>Chunk Size: <span id="chunkSize">-</span></div>
+        <div>Clients Connected: <span id="clientCount">-</span></div>
+        <div>Chunks Received: <span id="chunkCount">0</span></div>
+    </div>
+
+    <div id="status"></div>
+    <audio id="remoteAudio" controls style="width: 100%; margin: 20px 0;"></audio>
+
+    <script>
+        let ws;
+        let instanceId;
+        let audioContext;
+        let audioBuffer = [];
+        let isPlaying = false;
+        let chunkCount = 0;
+        let audioConfig;
+
+        const startBtn = document.getElementById('startBtn');
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const remoteAudio = document.getElementById('remoteAudio');
+        const statusDiv = document.getElementById('status');
+
+        function log(message, type = 'info') {
+            console.log(message);
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            statusDiv.appendChild(div);
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+
+        function updateAudioInfo(status, config, clientCount) {
+            document.getElementById('audioStatus').textContent = status;
+            if (config) {
+                document.getElementById('sampleRate').textContent = config.sample_rate + ' Hz';
+                document.getElementById('channels').textContent = config.channels;
+                document.getElementById('chunkSize').textContent = config.chunk_size + ' bytes';
+            }
+            if (clientCount !== undefined) {
+                document.getElementById('clientCount').textContent = clientCount;
+            }
+            document.getElementById('chunkCount').textContent = chunkCount;
+        }
+
+        async function sendMPVCommand(action) {
+            try {
+                const response = await fetch(`http://localhost:8000/api/instances/${instanceId}/command`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action })
+                });
+                const result = await response.json();
+                log(`MPV ${action} command sent`, 'success');
+                return result;
+            } catch (error) {
+                log(`MPV ${action} command failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkAudioStatus() {
+            if (!instanceId) return;
+
+            try {
+                const response = await fetch(`http://localhost:8000/api/instances/${instanceId}/audio/status`);
+                const status = await response.json();
+
+                updateAudioInfo(
+                    status.streaming ? 'Streaming' : 'Not streaming',
+                    JSON.parse(status.config),
+                    status.clients
+                );
+            } catch (error) {
+                log(`Failed to get audio status: ${error.message}`, 'error');
+            }
+        }
+
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                log('Audio context initialized', 'success');
+            }
+        }
+
+        function parsePCMChunk(data) {
+            const view = new DataView(data);
+            let offset = 0;
+
+            const tsSec = view.getUint32(offset, true);
+            offset += 4;
+            const tsUsec = view.getUint32(offset, true);
+            offset += 4;
+            const size = view.getBigUint64(offset, true);
+            offset += 8;
+
+            const payload = new Uint8Array(data, offset, Number(size));
+
+            return {
+                tsSec,
+                tsUsec,
+                size: Number(size),
+                payload
+            };
+        }
+
+        async function playPCMData(pcmData) {
+            if (!audioContext) return;
+
+            try {
+                const int16Array = new Int16Array(pcmData.buffer);
+                const float32Array = new Float32Array(int16Array.length);
+
+                for (let i = 0; i < int16Array.length; i++) {
+                    float32Array[i] = int16Array[i] / 32768.0;
+                }
+
+                const audioBuffer = audioContext.createBuffer(2, float32Array.length / 2, 48000);
+
+                for (let channel = 0; channel < 2; channel++) {
+                    const channelData = audioBuffer.getChannelData(channel);
+                    for (let i = 0; i < channelData.length; i++) {
+                        channelData[i] = float32Array[i * 2 + channel];
+                    }
+                }
+
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(audioContext.destination);
+                source.start();
+
+            } catch (error) {
+                log(`Error playing PCM data: ${error.message}`, 'error');
+            }
+        }
+
+        playBtn.onclick = () => sendMPVCommand('play');
+        pauseBtn.onclick = () => sendMPVCommand('pause');
+
+        stopBtn.onclick = () => {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            startBtn.disabled = false;
+            playBtn.disabled = true;
+            pauseBtn.disabled = true;
+            stopBtn.disabled = true;
+            updateAudioInfo('Disconnected', null, 0);
+            log('Stream stopped', 'info');
+        };
+
+        startBtn.onclick = async () => {
+            try {
+                log('Creating MPV instance...');
+
+                const createResponse = await fetch('http://localhost:8000/api/instances', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mediaFile: 'd:/mpv-play/samples/sample1.mp4',
+                        streamAudio: true
+                    })
+                });
+
+                if (!createResponse.ok) {
+                    throw new Error(`Failed to create instance: ${createResponse.status}`);
+                }
+
+                const createResult = await createResponse.json();
+                instanceId = createResult.instanceId;
+                log(`Created instance: ${instanceId}`, 'success');
+
+                playBtn.disabled = false;
+                pauseBtn.disabled = false;
+                stopBtn.disabled = false;
+                startBtn.disabled = true;
+
+                initAudioContext();
+
+                log('Connecting to WebSocket audio stream...');
+                ws = new WebSocket(`ws://localhost:8000/api/instances/${instanceId}/audio-stream`);
+
+                ws.onopen = () => {
+                    log('WebSocket connected', 'success');
+                    updateAudioInfo('Connected', null, null);
+                };
+
+                ws.onmessage = async (event) => {
+                    if (typeof event.data === 'string') {
+                        try {
+                            const message = JSON.parse(event.data);
+
+                            if (message.type === 'config') {
+                                audioConfig = JSON.parse(message.data);
+                                log(`Audio config received: ${audioConfig.sample_rate}Hz, ${audioConfig.channels} channels`, 'success');
+                                updateAudioInfo('Configured', audioConfig, null);
+                            } else if (message.type === 'sync_response') {
+                                log(`Sync response: server_timestamp=${message.server_timestamp}`, 'info');
+                            }
+                        } catch (error) {
+                            log(`Error parsing WebSocket message: ${error.message}`, 'error');
+                        }
+                    } else {
+                        chunkCount++;
+                        document.getElementById('chunkCount').textContent = chunkCount;
+
+                        const arrayBuffer = await event.data.arrayBuffer();
+                        const chunk = parsePCMChunk(arrayBuffer);
+
+                        if (chunkCount % 100 === 0) {
+                            log(`Received chunk ${chunkCount}: ${chunk.size} bytes`, 'info');
+                        }
+
+                        await playPCMData(chunk.payload);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    log(`WebSocket error: ${error}`, 'error');
+                };
+
+                ws.onclose = () => {
+                    log('WebSocket disconnected', 'info');
+                    updateAudioInfo('Disconnected', null, 0);
+                };
+
+                setTimeout(() => {
+                    log('Starting MPV playback...');
+                    sendMPVCommand('play');
+                }, 2000);
+
+                setInterval(checkAudioStatus, 5000);
+
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                console.error('Detailed error:', error);
+            }
+        };
+
+        window.addEventListener('beforeunload', () => {
+            if (ws) {
+                ws.close();
+            }
+        });
+    </script>
+</body>
+
+</html>

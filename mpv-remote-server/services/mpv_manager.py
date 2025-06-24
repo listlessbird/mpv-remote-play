@@ -4,13 +4,11 @@ import json
 import logging
 import subprocess
 import uuid
-import os
 import sys
 from typing import Optional
 
 if sys.platform == "win32":
     import win32file
-    import win32pipe
     import pywintypes
 
 from models.model import (
@@ -20,7 +18,6 @@ from models.model import (
     RemoteCommand,
     RemoteCommandAction,
     MPVStatus,
-    MPVAudioSubtitleTrack,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,16 +31,21 @@ if not logger.handlers:
     logger.addHandler(handler)
     logger.propagate = False
 
+
 class MPVManager:
     def __init__(self):
         self.instances: dict[str, MPVInstance] = {}
         self.request_count = 0
         logger.info("MPVManager initialized")
 
-    async def create_instance(self, media_file: Optional[str] = None) -> str:
+    async def create_instance(
+        self,
+        media_file: Optional[str] = None,
+        stream_audio: bool = False,
+    ) -> str:
         instance_id = str(uuid.uuid4())
         pipe_name = f"mpvsocket_{instance_id}"
-        
+
         if sys.platform == "win32":
             pipe_address = f"\\\\.\\pipe\\{pipe_name}"
         else:
@@ -74,6 +76,22 @@ class MPVManager:
                 "--slang=en,eng",
                 f"--input-ipc-server={pipe_address}",
             ]
+
+            if stream_audio:
+                from services.audio_stream import audio_stream_service
+
+                pipe_path = audio_stream_service.get_named_pipe_path(instance_id)
+
+                audio_args = [
+                    # audio out config
+                    "--ao=pcm",
+                    f"--ao-pcm-file={pipe_path}",
+                    "--ao-pcm-waveheader=no",
+                    "--audio-format=s16",
+                    "--audio-samplerate=48000",
+                    "--audio-channels=stereo",
+                ]
+                args.extend(audio_args)
 
             if media_file:
                 args.append(media_file)
@@ -107,6 +125,11 @@ class MPVManager:
                 logger.error(f"IPC connection failed for instance {instance_id}: {e}")
                 raise Exception("MPV Started but IPC failed")
 
+            if stream_audio:
+                from services.audio_stream import audio_stream_service
+
+                asyncio.create_task(audio_stream_service.start_stream(instance_id))
+
             asyncio.create_task(self._monitor_process(instance_id, process))
             asyncio.create_task(self._clean_dead_instances())
 
@@ -123,10 +146,11 @@ class MPVManager:
             *[],
             stdout=process.stdout,
             stderr=process.stderr,
-            
         )
         exit_code = await asyncio.to_thread(process.wait)
-        logger.info(f"MPV process for instance {instance_id} exited with code {exit_code}")
+        logger.info(
+            f"MPV process for instance {instance_id} exited with code {exit_code}"
+        )
 
         if instance_id in self.instances:
             self.instances[instance_id].status = MPVStatus.STOPPED
@@ -134,6 +158,7 @@ class MPVManager:
 
     async def _connect_to_windows_pipe(self, pipe_address: str):
         """Connect to a Windows named pipe using win32 API"""
+
         def connect_pipe():
             try:
                 handle = win32file.CreateFile(
@@ -143,17 +168,18 @@ class MPVManager:
                     None,
                     win32file.OPEN_EXISTING,
                     0,
-                    None
+                    None,
                 )
                 return handle
             except pywintypes.error as e:
                 logger.error(f"Failed to connect to pipe {pipe_address}: {e}")
                 raise Exception(f"Failed to connect to pipe: {e}")
-        
+
         return await asyncio.to_thread(connect_pipe)
 
     async def _write_to_windows_pipe(self, handle, data: bytes):
         """Write data to Windows named pipe"""
+
         def write_pipe():
             try:
                 win32file.WriteFile(handle, data)
@@ -161,11 +187,12 @@ class MPVManager:
             except pywintypes.error as e:
                 logger.error(f"Failed to write to pipe: {e}")
                 raise Exception(f"Failed to write to pipe: {e}")
-        
+
         await asyncio.to_thread(write_pipe)
 
     async def _read_from_windows_pipe(self, handle, timeout: float = 10.0) -> bytes:
         """Read data from Windows named pipe with timeout"""
+
         def read_pipe() -> bytes:
             try:
                 result, data = win32file.ReadFile(handle, 4096)
@@ -173,24 +200,25 @@ class MPVManager:
             except pywintypes.error as e:
                 logger.error(f"Failed to read from pipe: {e}")
                 raise Exception(f"Failed to read from pipe: {e}")
-        
+
         return await asyncio.wait_for(asyncio.to_thread(read_pipe), timeout=timeout)
 
     async def _close_windows_pipe(self, handle):
         """Close Windows named pipe handle"""
+
         def close_pipe():
             try:
                 win32file.CloseHandle(handle)
             except pywintypes.error as e:
                 logger.warning(f"Error closing pipe handle: {e}")
-        
+
         await asyncio.to_thread(close_pipe)
 
     async def send_command(
         self, instance_id: str, cmd: MPVCommand, allow_starting: bool = False
     ) -> MPVResponse:
         logger.debug(f"Sending command to instance {instance_id}: {cmd.command}")
-        
+
         instance = self.instances.get(instance_id)
 
         if not instance:
@@ -204,7 +232,9 @@ class MPVManager:
         )
 
         if instance.status not in valid_stats:
-            logger.error(f"MPV Instance {instance_id} is not in a valid state ({instance.status})")
+            logger.error(
+                f"MPV Instance {instance_id} is not in a valid state ({instance.status})"
+            )
             raise Exception(
                 f"MPV Instance {instance_id} is not in a valid state ({instance.status})"
             )
@@ -213,7 +243,7 @@ class MPVManager:
             pipe_address = f"\\\\.\\pipe\\{instance.pipe_name}"
         else:
             pipe_address = f"/tmp/{instance.pipe_name}"
-        
+
         logger.debug(f"Connecting to pipe: {pipe_address}")
 
         request_id = self.request_count
@@ -223,31 +253,35 @@ class MPVManager:
         cmd_dict["request_id"] = request_id
         cmd_json = json.dumps(cmd_dict) + "\n"
 
-        logger.debug(f"Sending command with request_id {request_id}: {cmd_json.strip()}")
+        logger.debug(
+            f"Sending command with request_id {request_id}: {cmd_json.strip()}"
+        )
 
         if sys.platform == "win32":
             return await self._send_command_windows(pipe_address, cmd_json, request_id)
         else:
             return await self._send_command_unix(pipe_address, cmd_json, request_id)
 
-    async def _send_command_windows(self, pipe_address: str, cmd_json: str, request_id: int) -> MPVResponse:
+    async def _send_command_windows(
+        self, pipe_address: str, cmd_json: str, request_id: int
+    ) -> MPVResponse:
         """Send command using Windows named pipes"""
         handle = None
         try:
             handle = await self._connect_to_windows_pipe(pipe_address)
             await self._write_to_windows_pipe(handle, cmd_json.encode())
-            
+
             buffer = b""
             while True:
                 try:
                     data = await self._read_from_windows_pipe(handle, timeout=10.0)
                     if not data:
                         break
-                    
+
                     buffer += data
-                    lines = buffer.split(b'\n')
+                    lines = buffer.split(b"\n")
                     buffer = lines[-1]  # Keep incomplete line in buffer
-                    
+
                     for line in lines[:-1]:  # Process complete lines
                         if line.strip():
                             line_str = line.decode().strip()
@@ -255,23 +289,29 @@ class MPVManager:
                             try:
                                 res = json.loads(line_str)
                                 if res.get("request_id") == request_id:
-                                    logger.debug(f"Found matching response for request_id {request_id}")
+                                    logger.debug(
+                                        f"Found matching response for request_id {request_id}"
+                                    )
                                     return MPVResponse(**res)
                             except json.JSONDecodeError as e:
-                                logger.warning(f"Failed to decode JSON response: {line_str}, error: {e}")
+                                logger.warning(
+                                    f"Failed to decode JSON response: {line_str}, error: {e}"
+                                )
                                 continue
                 except asyncio.TimeoutError:
                     logger.error(f"Timeout waiting for response from MPV instance")
                     raise Exception("Timeout waiting for response from MPV")
-                    
+
         finally:
             if handle:
                 await self._close_windows_pipe(handle)
-        
+
         logger.error(f"No matching response found for request_id {request_id}")
         raise Exception("No matching response found")
 
-    async def _send_command_unix(self, pipe_address: str, cmd_json: str, request_id: int) -> MPVResponse:
+    async def _send_command_unix(
+        self, pipe_address: str, cmd_json: str, request_id: int
+    ) -> MPVResponse:
         """Send command using Unix domain sockets"""
         reader, writer = await asyncio.open_connection(path=pipe_address)
 
@@ -291,23 +331,29 @@ class MPVManager:
                     try:
                         res = json.loads(line_str)
                         if res.get("request_id") == request_id:
-                            logger.debug(f"Found matching response for request_id {request_id}")
+                            logger.debug(
+                                f"Found matching response for request_id {request_id}"
+                            )
                             return MPVResponse(**res)
                     except json.JSONDecodeError as e:
-                        logger.warning(f"Failed to decode JSON response: {line_str}, error: {e}")
+                        logger.warning(
+                            f"Failed to decode JSON response: {line_str}, error: {e}"
+                        )
                         continue
         finally:
             writer.close()
             await writer.wait_closed()
-        
+
         logger.error(f"Timeout waiting for response from MPV instance")
         raise Exception("Timeout waiting for response from MPV")
 
     async def execute_remote_command(
         self, instance_id: str, remote_cmd: RemoteCommand
     ) -> MPVResponse:
-        logger.info(f"Executing remote command {remote_cmd.action} on instance {instance_id}")
-        
+        logger.info(
+            f"Executing remote command {remote_cmd.action} on instance {instance_id}"
+        )
+
         mpv_command: MPVCommand
 
         if remote_cmd.action in [RemoteCommandAction.PLAY, RemoteCommandAction.PAUSE]:
@@ -329,7 +375,7 @@ class MPVManager:
             if not file_path:
                 logger.error("File path is required for loadfile command")
                 raise ValueError("File path is required for loadfile command")
-            
+
             logger.debug(f"Loading file: {file_path} with mode: {mode}")
             mpv_command = MPVCommand(command=["loadfile", file_path, mode], **{})
 
@@ -361,7 +407,7 @@ class MPVManager:
             if not property_name:
                 logger.error("Property is required for get_property command")
                 raise ValueError("Property is required for get_property command")
-            
+
             logger.debug(f"Getting property: {property_name}")
             mpv_command = MPVCommand(command=["get_property", property_name], **{})
 
@@ -375,8 +421,10 @@ class MPVManager:
                 raise ValueError(
                     "Property and value are required for set_property command"
                 )
-            
-            logger.debug(f"Setting property {remote_cmd.params['property']} to {remote_cmd.params['value']}")
+
+            logger.debug(
+                f"Setting property {remote_cmd.params['property']} to {remote_cmd.params['value']}"
+            )
             mpv_command = MPVCommand(
                 command=[
                     "set_property",
@@ -397,7 +445,7 @@ class MPVManager:
         instance_id: str,
     ):
         logger.debug(f"Getting available tracks for instance {instance_id}")
-        
+
         tracks_response = await self.send_command(
             instance_id=instance_id,
             cmd=MPVCommand(command=["get_property", "track-list"], **{}),
@@ -432,7 +480,9 @@ class MPVManager:
             if t.get("type") == "sub"
         ]
 
-        logger.debug(f"Found {len(audio_tracks)} audio tracks and {len(subtitle_tracks)} subtitle tracks")
+        logger.debug(
+            f"Found {len(audio_tracks)} audio tracks and {len(subtitle_tracks)} subtitle tracks"
+        )
         return {
             "audioTracks": audio_tracks,
             "subtitleTracks": subtitle_tracks,
@@ -454,7 +504,7 @@ class MPVManager:
 
     async def get_current_tracks(self, instance_id: str):
         logger.debug(f"Getting current tracks for instance {instance_id}")
-        
+
         audio_track, subtitle_track = await asyncio.gather(
             self.send_command(
                 instance_id, MPVCommand(command=["get_property", "aid"], **{})
@@ -464,12 +514,14 @@ class MPVManager:
             ),
         )
 
-        logger.debug(f"Current audio track: {audio_track.data}, subtitle track: {subtitle_track.data}")
+        logger.debug(
+            f"Current audio track: {audio_track.data}, subtitle track: {subtitle_track.data}"
+        )
         return {"audioTrack": audio_track.data, "subtitleTrack": subtitle_track.data}
 
     async def get_client_name(self, instance_id: str) -> str:
         logger.debug(f"Getting client name for instance {instance_id}")
-        
+
         instance = self.instances.get(instance_id)
         if not instance:
             logger.error(f"MPV instance {instance_id} not found")
@@ -485,21 +537,23 @@ class MPVManager:
 
     async def get_instance(self, instance_id: str) -> Optional[MPVInstance]:
         logger.debug(f"Getting instance {instance_id}")
-        
+
         instance = self.instances.get(instance_id)
         if instance:
             try:
                 client_name = await self.get_client_name(instance_id)
                 instance.client_name = client_name
             except Exception as e:
-                logger.warning(f"Failed to get client name for instance {instance_id}: {e}")
+                logger.warning(
+                    f"Failed to get client name for instance {instance_id}: {e}"
+                )
         else:
             logger.warning(f"Instance {instance_id} not found")
         return instance
 
     async def get_all_instances(self) -> list[MPVInstance]:
         logger.debug(f"Getting all instances (count: {len(self.instances)})")
-        
+
         instances = list(self.instances.values())
 
         for instance in instances:
@@ -507,20 +561,24 @@ class MPVManager:
                 client_name = await self.get_client_name(instance.id)
                 instance.client_name = client_name
             except Exception as e:
-                logger.warning(f"Failed to get client name for instance {instance.id}: {e}")
+                logger.warning(
+                    f"Failed to get client name for instance {instance.id}: {e}"
+                )
 
         return instances
 
     async def stop_instance(self, instance_id: str):
         logger.info(f"Stopping instance {instance_id}")
-        
+
         instance = self.instances.get(instance_id)
         if instance and instance.process:
             try:
                 logger.debug(f"Sending quit command to instance {instance_id}")
                 await self.send_command(instance_id, MPVCommand(command=["quit"], **{}))
             except Exception as e:
-                logger.warning(f"Failed to send quit command to instance {instance_id}: {e}")
+                logger.warning(
+                    f"Failed to send quit command to instance {instance_id}: {e}"
+                )
                 if instance.process and hasattr(instance.process, "terminate"):
                     logger.debug(f"Terminating process for instance {instance_id}")
                     instance.process.terminate()
@@ -541,7 +599,9 @@ class MPVManager:
                 or (now - instance.last_seen).total_seconds() > 5 * 60
             ):
                 dead_instances.append(instance_id)
-                logger.debug(f"Marking instance {instance_id} for cleanup (status: {instance.status})")
+                logger.debug(
+                    f"Marking instance {instance_id} for cleanup (status: {instance.status})"
+                )
 
         for instance_id in dead_instances:
             logger.info(f"Cleaning up dead instance {instance_id}")

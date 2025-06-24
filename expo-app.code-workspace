@@ -10,5 +10,7 @@
 			"path": "mpv-remote-server"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "mpv-remote-server"
+	}
 }

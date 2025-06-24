@@ -1,16 +1,34 @@
-import asyncio
-import sys
-from datetime import datetime
-from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import JSONResponse, FileResponse
-from pathlib import Path
-from contextlib import asynccontextmanager
-from typing import Dict, List, Optional
-
 from config import settings
 from services.mpv_manager import mpv_manager
 from services.shares import MediaShare
-from models.model import MPVCommand, RemoteCommand, Track, ShareScanResult
+from models.model import (
+    MPVCommand,
+    RemoteCommand,
+)
+from services.audio_stream import audio_stream_service
+
+
+from datetime import datetime
+import time
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
+from pathlib import Path
+from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
+from typing import Dict
+
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.propagate = False
 
 share_service = MediaShare()
 
@@ -23,6 +41,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="MPV Remote Control Server", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/api/status")
@@ -51,6 +76,7 @@ async def get_instances():
 @app.post("/api/instances")
 async def create_instance(body: Dict = {}):
     media_file = body.get("mediaFile")
+    stream_audio = body.get("streamAudio", False)
 
     if media_file:
         if not Path(media_file).exists():
@@ -82,7 +108,9 @@ async def create_instance(body: Dict = {}):
             }
 
     try:
-        instance_id = await mpv_manager.create_instance(media_file)
+        instance_id = await mpv_manager.create_instance(
+            media_file, stream_audio=stream_audio
+        )
         return {
             "instanceId": instance_id,
             "message": "MPV instance created successfully",
@@ -188,3 +216,48 @@ async def get_thumbnail(thumbnail_id: str):
         media_type="image/jpeg",
         headers={"Cache-Control": "public, max-age=31536000"},
     )
+
+
+@app.websocket("/api/instances/{instance_id}/audio-stream")
+async def stream_audio(ws: WebSocket, instance_id: str):
+    await ws.accept()
+
+    config = audio_stream_service.config
+
+    await ws.send_json({"type": "config", "data": config.model_dump_json()})
+
+    await audio_stream_service.add_ws_client(instance_id, ws)
+
+    try:
+        while True:
+            try:
+                data = await ws.receive_json()
+
+                if data.get("type") == "sync":
+                    # TODO: sync correction
+
+                    server_time = time.time()
+                    await ws.send_json(
+                        {
+                            "type": "sync_response",
+                            "server_timestamp": server_time,
+                            "latency_correction": 0,
+                        }
+                    )
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                logger.error(f"Error websocket: {e}")
+                break
+    finally:
+        await audio_stream_service.remove_ws_client(instance_id, ws)
+
+
+@app.get("/api/instances/{instance_id}/audio/status")
+async def get_audio_status(instance_id: str):
+    """Get audio streaming status"""
+    return {
+        "streaming": instance_id in audio_stream_service.active_streams,
+        "clients": len(audio_stream_service.ws_clients.get(instance_id, [])),
+        "config": audio_stream_service.config.model_dump_json(),
+    }
