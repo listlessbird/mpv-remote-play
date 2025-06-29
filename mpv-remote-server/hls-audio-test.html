@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <title>HLS Audio Stream Test</title>
+    <title>MPV + HLS Audio Stream Test</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -32,12 +32,59 @@
 
         .controls {
             margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+
+        .controls h3 {
+            margin-top: 0;
         }
 
         button {
             margin: 5px;
             padding: 10px 15px;
             font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            background-color: #fff;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #f0f0f0;
+        }
+
+        button:disabled {
+            background-color: #e9ecef;
+            color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .slider-container {
+            margin: 10px 0;
+        }
+
+        .slider {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .audio-player {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .mpv-info {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 5px;
         }
 
         .audio-info {
@@ -48,30 +95,54 @@
             border-radius: 5px;
         }
 
-        .audio-player {
-            margin: 20px 0;
-            padding: 15px;
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+        .time-display {
+            font-family: monospace;
+            font-size: 16px;
+            margin: 10px 0;
         }
     </style>
 </head>
 
 <body>
-    <h1>LibMPV HLS Audio Stream Test</h1>
+    <h1>MPV + HLS Audio Stream Test</h1>
 
     <div class="controls">
+        <h3>Connection</h3>
         <button id="connectBtn">Connect</button>
-        <button id="playBtn" disabled>Play HLS Stream</button>
+        <button id="playBtn" disabled>Start HLS Stream</button>
         <button id="stopBtn" disabled>Stop</button>
     </div>
 
+    <div class="controls">
+        <h3>MPV Playback Control</h3>
+        <button id="mpvPlayBtn" disabled>Play</button>
+        <button id="mpvPauseBtn" disabled>Pause</button>
+        <button id="mpvToggleBtn" disabled>Toggle Play/Pause</button>
+
+        <div class="slider-container">
+            <label for="volumeSlider">Volume: <span id="volumeValue">100</span>%</label>
+            <input type="range" id="volumeSlider" class="slider" min="0" max="100" value="100" disabled>
+        </div>
+
+        <div class="slider-container">
+            <label for="seekSlider">Position: <span id="timeDisplay">00:00 / 00:00</span></label>
+            <input type="range" id="seekSlider" class="slider" min="0" max="100" value="0" disabled>
+        </div>
+    </div>
+
     <div class="audio-player">
-        <h3>Audio Player</h3>
+        <h3>HLS Audio Player</h3>
         <audio id="audioPlayer" controls style="width: 100%;">
             Your browser does not support the audio element.
         </audio>
+    </div>
+
+    <div class="mpv-info">
+        <h3>MPV Status</h3>
+        <div>State: <span id="mpvState">Disconnected</span></div>
+        <div>Duration: <span id="mpvDuration">-</span>s</div>
+        <div>Position: <span id="mpvPosition">-</span>s</div>
+        <div>Volume: <span id="mpvVolume">-</span>%</div>
     </div>
 
     <div class="audio-info">
@@ -96,10 +167,25 @@
         let audioPlayer = null;
         let segmentCount = 0;
         let audioConfig = null;
+        let isUserScrubbing = false;
+        let mpvState = {
+            paused: true,
+            time_pos: 0,
+            duration: 0,
+            volume: 100
+        };
 
+        // UI Elements
         const connectBtn = document.getElementById('connectBtn');
         const playBtn = document.getElementById('playBtn');
         const stopBtn = document.getElementById('stopBtn');
+        const mpvPlayBtn = document.getElementById('mpvPlayBtn');
+        const mpvPauseBtn = document.getElementById('mpvPauseBtn');
+        const mpvToggleBtn = document.getElementById('mpvToggleBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        const seekSlider = document.getElementById('seekSlider');
+        const timeDisplay = document.getElementById('timeDisplay');
         const statusDiv = document.getElementById('status');
         const logDiv = document.getElementById('log');
 
@@ -124,6 +210,37 @@
             statusDiv.scrollTop = statusDiv.scrollHeight;
         }
 
+        function updateMpvInfo() {
+            document.getElementById('mpvState').textContent = mpvState.paused ? 'Paused' : 'Playing';
+            document.getElementById('mpvDuration').textContent = mpvState.duration.toFixed(1);
+            document.getElementById('mpvPosition').textContent = mpvState.time_pos.toFixed(1);
+            document.getElementById('mpvVolume').textContent = mpvState.volume.toFixed(0);
+
+            // Update sliders
+            if (mpvState.duration > 0) {
+                seekSlider.max = mpvState.duration;
+                // Only update seek slider if user is not currently scrubbing
+                if (!isUserScrubbing) {
+                    seekSlider.value = mpvState.time_pos;
+                }
+            }
+            volumeSlider.value = mpvState.volume;
+            volumeValue.textContent = Math.round(mpvState.volume);
+
+            // Update time display (unless user is scrubbing)
+            if (!isUserScrubbing) {
+                const current = formatTime(mpvState.time_pos);
+                const total = formatTime(mpvState.duration);
+                timeDisplay.textContent = `${current} / ${total}`;
+            }
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
         function updateAudioInfo(status, config) {
             document.getElementById('audioStatus').textContent = status;
             if (config) {
@@ -142,6 +259,56 @@
                 document.getElementById('hlsSupport').textContent = 'Not supported';
             }
         }
+
+        function enableMpvControls(enabled) {
+            mpvPlayBtn.disabled = !enabled;
+            mpvPauseBtn.disabled = !enabled;
+            mpvToggleBtn.disabled = !enabled;
+            volumeSlider.disabled = !enabled;
+            seekSlider.disabled = !enabled;
+        }
+
+        function sendMpvCommand(command) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(command));
+                log(`Sent MPV command: ${command.type}`, 'info');
+            } else {
+                log('WebSocket not connected', 'error');
+            }
+        }
+
+        // MPV Control Event Listeners
+        mpvPlayBtn.onclick = () => sendMpvCommand({ type: 'play' });
+        mpvPauseBtn.onclick = () => sendMpvCommand({ type: 'pause' });
+        mpvToggleBtn.onclick = () => sendMpvCommand({ type: 'toggle_pause' });
+
+        volumeSlider.oninput = (e) => {
+            volumeValue.textContent = e.target.value;
+            sendMpvCommand({ type: 'volume', volume: parseInt(e.target.value) });
+        };
+
+        // Seek slider event handling with scrubbing detection
+        seekSlider.onmousedown = () => { isUserScrubbing = true; };
+        seekSlider.ontouchstart = () => { isUserScrubbing = true; };
+
+        seekSlider.onmouseup = () => {
+            isUserScrubbing = false;
+            sendMpvCommand({ type: 'seek', position: parseFloat(seekSlider.value) });
+        };
+        seekSlider.ontouchend = () => {
+            isUserScrubbing = false;
+            sendMpvCommand({ type: 'seek', position: parseFloat(seekSlider.value) });
+        };
+
+        seekSlider.oninput = (e) => {
+            // Update display immediately during scrubbing, but don't send command yet
+            if (isUserScrubbing) {
+                const scrubTime = parseFloat(e.target.value);
+                const current = formatTime(scrubTime);
+                const total = formatTime(mpvState.duration);
+                timeDisplay.textContent = `${current} / ${total}`;
+            }
+        };
 
         function initializeHLS(playlistUrl) {
             if (hls) {
@@ -210,6 +377,42 @@
             }
         }
 
+        function syncAudioWithMpv(property = null) {
+            if (!audioPlayer) return;
+
+            // Sync play/pause state
+            if (mpvState.paused && !audioPlayer.paused) {
+                audioPlayer.pause();
+                log('HLS audio paused (synced with MPV)', 'info');
+            } else if (!mpvState.paused && audioPlayer.paused && hls) {
+                audioPlayer.play();
+                log('HLS audio resumed (synced with MPV)', 'info');
+            }
+
+            // Sync seeking position (but not during user scrubbing)
+            if ((property === 'time_pos' || property === null) && !isUserScrubbing) {
+                if (Math.abs(audioPlayer.currentTime - mpvState.time_pos) > 1.0) {
+                    // Only seek if difference is significant (> 1 second) to avoid constant adjustments
+                    try {
+                        audioPlayer.currentTime = mpvState.time_pos;
+                        log(`HLS audio seeked to ${mpvState.time_pos.toFixed(2)}s (synced with MPV)`, 'info');
+                    } catch (error) {
+                        // Handle cases where seeking is not yet possible
+                        log(`HLS audio seek failed: ${error.message}`, 'error');
+                    }
+                }
+            }
+
+            // Sync volume
+            if (property === 'volume' || property === null) {
+                const targetVolume = mpvState.volume / 100; // Convert to 0-1 range
+                if (Math.abs(audioPlayer.volume - targetVolume) > 0.01) {
+                    audioPlayer.volume = targetVolume;
+                    log(`HLS audio volume set to ${mpvState.volume}% (synced with MPV)`, 'info');
+                }
+            }
+        }
+
         playBtn.onclick = async () => {
             if (!audioConfig || !audioConfig.playlist_url) {
                 log('No HLS playlist URL available', 'error');
@@ -224,12 +427,12 @@
                     // Give HLS a moment to load
                     setTimeout(async () => {
                         try {
-                            await audioPlayer.play();
+                            // Don't auto-play, wait for MPV state
                             playBtn.disabled = true;
                             stopBtn.disabled = false;
-                            log('HLS playback started', 'success');
+                            log('HLS initialized, ready for MPV control', 'success');
                         } catch (error) {
-                            log(`Error starting playback: ${error.message}`, 'error');
+                            log(`Error preparing HLS: ${error.message}`, 'error');
                         }
                     }, 1000);
                 } else {
@@ -259,6 +462,7 @@
             connectBtn.textContent = 'Connect';
             playBtn.disabled = false;
             stopBtn.disabled = true;
+            enableMpvControls(false);
             updateAudioInfo('Disconnected', null);
             segmentCount = 0;
             log('Playback stopped and cleaned up', 'info');
@@ -285,6 +489,7 @@
                     connectBtn.textContent = 'Connect';
                     playBtn.disabled = true;
                     stopBtn.disabled = true;
+                    enableMpvControls(false);
                     log('WebSocket disconnected', 'info');
                 };
 
@@ -294,9 +499,33 @@
 
                         if (data.type === 'config') {
                             audioConfig = data;
-                            log(`Config received: ${data.sample_rate}Hz, ${data.channels} channels, ${data.segment_duration}s segments`, 'success');
+                            log(`HLS Config: ${data.segment_duration}s segments, ${data.bitrate} bitrate`, 'success');
                             updateAudioInfo('Configured', data);
-                        } else if (data.type === 'new_segment') {
+                        }
+
+                        else if (data.type === 'mpv_state') {
+                            // Initial MPV state
+                            mpvState = { ...mpvState, ...data };
+                            enableMpvControls(true);
+                            updateMpvInfo();
+                            syncAudioWithMpv();
+                            log('Received initial MPV state', 'success');
+                        }
+
+                        else if (data.type === 'mpv_state_change') {
+                            // MPV state change
+                            mpvState[data.property] = data.value;
+                            updateMpvInfo();
+
+                            // Sync HLS audio with MPV state for relevant properties
+                            if (['paused', 'time_pos', 'volume'].includes(data.property)) {
+                                syncAudioWithMpv(data.property);
+                            }
+
+                            log(`MPV ${data.property} changed: ${data.value}`, 'info');
+                        }
+
+                        else if (data.type === 'new_segment') {
                             segmentCount++;
                             updateAudioInfo('Connected', audioConfig);
                             log(`New segment available: ${data.segment.name} (${data.segment.size} bytes)`, 'info');
@@ -321,6 +550,10 @@
 
         audioPlayer.addEventListener('canplay', () => {
             log('Audio player: Can play', 'success');
+            // Sync with current MPV state when ready
+            setTimeout(() => {
+                syncAudioWithMpv();
+            }, 100); // Small delay to ensure audio is fully ready
         });
 
         audioPlayer.addEventListener('playing', () => {
@@ -351,6 +584,7 @@
 
         // Initialize UI
         updateAudioInfo('Not connected', null);
+        updateMpvInfo();
     </script>
 </body>
 
