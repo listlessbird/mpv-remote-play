@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>HLS Audio Stream Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .controls {
+            margin: 20px 0;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px 15px;
+            font-size: 14px;
+        }
+
+        .audio-info {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+
+        .audio-player {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>LibMPV HLS Audio Stream Test</h1>
+
+    <div class="controls">
+        <button id="connectBtn">Connect</button>
+        <button id="playBtn" disabled>Play HLS Stream</button>
+        <button id="stopBtn" disabled>Stop</button>
+    </div>
+
+    <div class="audio-player">
+        <h3>Audio Player</h3>
+        <audio id="audioPlayer" controls style="width: 100%;">
+            Your browser does not support the audio element.
+        </audio>
+    </div>
+
+    <div class="audio-info">
+        <h3>Stream Info</h3>
+        <div>Status: <span id="audioStatus">Not connected</span></div>
+        <div>Sample Rate: <span id="sampleRate">-</span></div>
+        <div>Channels: <span id="channels">-</span></div>
+        <div>Segment Duration: <span id="segmentDuration">-</span></div>
+        <div>Segments Ready: <span id="segmentCount">0</span></div>
+        <div>HLS Support: <span id="hlsSupport">-</span></div>
+    </div>
+
+    <div id="status"></div>
+    <pre id="log"></pre>
+
+    <!-- HLS.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+    <script>
+        let ws = null;
+        let hls = null;
+        let audioPlayer = null;
+        let segmentCount = 0;
+        let audioConfig = null;
+
+        const connectBtn = document.getElementById('connectBtn');
+        const playBtn = document.getElementById('playBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusDiv = document.getElementById('status');
+        const logDiv = document.getElementById('log');
+
+        // Initialize audio player
+        audioPlayer = document.getElementById('audioPlayer');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent = `[${timestamp}] ${message}\n` + logDiv.textContent;
+            if (logDiv.textContent.split('\n').length > 20) {
+                logDiv.textContent = logDiv.textContent.split('\n').slice(0, 20).join('\n');
+            }
+            console.log(message);
+
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = timestamp + ': ' + message;
+            statusDiv.appendChild(div);
+            if (statusDiv.children.length > 10) {
+                statusDiv.removeChild(statusDiv.firstChild);
+            }
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+
+        function updateAudioInfo(status, config) {
+            document.getElementById('audioStatus').textContent = status;
+            if (config) {
+                document.getElementById('sampleRate').textContent = config.sample_rate + ' Hz';
+                document.getElementById('channels').textContent = config.channels;
+                document.getElementById('segmentDuration').textContent = config.segment_duration + 's';
+            }
+            document.getElementById('segmentCount').textContent = segmentCount;
+
+            // Check HLS support
+            if (Hls.isSupported()) {
+                document.getElementById('hlsSupport').textContent = 'HLS.js supported';
+            } else if (audioPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                document.getElementById('hlsSupport').textContent = 'Native HLS supported';
+            } else {
+                document.getElementById('hlsSupport').textContent = 'Not supported';
+            }
+        }
+
+        function initializeHLS(playlistUrl) {
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+
+            if (Hls.isSupported()) {
+                hls = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 90,
+                    maxBufferLength: 60,
+                    maxMaxBufferLength: 120,
+                    liveSyncDurationCount: 3,
+                    liveMaxLatencyDurationCount: 10,
+                    debug: false
+                });
+
+                hls.loadSource(playlistUrl);
+                hls.attachMedia(audioPlayer);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                    log('HLS manifest parsed successfully', 'success');
+                });
+
+                hls.on(Hls.Events.FRAG_LOADED, function (event, data) {
+                    log(`HLS fragment loaded: ${data.frag.sn}`, 'info');
+                });
+
+                hls.on(Hls.Events.ERROR, function (event, data) {
+                    if (data.fatal) {
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                log('Fatal network error encountered, trying to recover', 'error');
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                log('Fatal media error encountered, trying to recover', 'error');
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                log('Fatal error, cannot recover: ' + data.details, 'error');
+                                hls.destroy();
+                                break;
+                        }
+                    } else {
+                        log('Non-fatal error: ' + data.details, 'error');
+                    }
+                });
+
+                hls.on(Hls.Events.LEVEL_LOADED, function (event, data) {
+                    log(`HLS level loaded with ${data.details.fragments.length} fragments`, 'info');
+                });
+
+                log('HLS.js initialized successfully', 'success');
+                return true;
+            } else if (audioPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                // Fallback to native HLS support (Safari)
+                audioPlayer.src = playlistUrl;
+                log('Using native HLS support', 'success');
+                return true;
+            } else {
+                log('HLS not supported in this browser', 'error');
+                return false;
+            }
+        }
+
+        playBtn.onclick = async () => {
+            if (!audioConfig || !audioConfig.playlist_url) {
+                log('No HLS playlist URL available', 'error');
+                return;
+            }
+
+            try {
+                const playlistUrl = `${window.location.origin}${audioConfig.playlist_url}`;
+                log(`Initializing HLS with playlist: ${playlistUrl}`, 'info');
+
+                if (initializeHLS(playlistUrl)) {
+                    // Give HLS a moment to load
+                    setTimeout(async () => {
+                        try {
+                            await audioPlayer.play();
+                            playBtn.disabled = true;
+                            stopBtn.disabled = false;
+                            log('HLS playback started', 'success');
+                        } catch (error) {
+                            log(`Error starting playback: ${error.message}`, 'error');
+                        }
+                    }, 1000);
+                } else {
+                    log('Failed to initialize HLS', 'error');
+                }
+            } catch (error) {
+                log(`Error initializing HLS: ${error.message}`, 'error');
+            }
+        };
+
+        stopBtn.onclick = () => {
+            if (audioPlayer) {
+                audioPlayer.pause();
+                audioPlayer.currentTime = 0;
+            }
+
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+
+            connectBtn.textContent = 'Connect';
+            playBtn.disabled = false;
+            stopBtn.disabled = true;
+            updateAudioInfo('Disconnected', null);
+            segmentCount = 0;
+            log('Playback stopped and cleaned up', 'info');
+        };
+
+        connectBtn.onclick = async () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+                return;
+            }
+
+            try {
+                ws = new WebSocket('ws://localhost:8000/ws');
+
+                ws.onopen = () => {
+                    updateAudioInfo('Connected', audioConfig);
+                    connectBtn.textContent = 'Disconnect';
+                    playBtn.disabled = false;
+                    log('WebSocket connected', 'success');
+                };
+
+                ws.onclose = () => {
+                    updateAudioInfo('Disconnected', null);
+                    connectBtn.textContent = 'Connect';
+                    playBtn.disabled = true;
+                    stopBtn.disabled = true;
+                    log('WebSocket disconnected', 'info');
+                };
+
+                ws.onmessage = async (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        if (data.type === 'config') {
+                            audioConfig = data;
+                            log(`Config received: ${data.sample_rate}Hz, ${data.channels} channels, ${data.segment_duration}s segments`, 'success');
+                            updateAudioInfo('Configured', data);
+                        } else if (data.type === 'new_segment') {
+                            segmentCount++;
+                            updateAudioInfo('Connected', audioConfig);
+                            log(`New segment available: ${data.segment.name} (${data.segment.size} bytes)`, 'info');
+                        }
+                    } catch (error) {
+                        log(`Error parsing WebSocket message: ${error.message}`, 'error');
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    log('WebSocket error: ' + error, 'error');
+                };
+            } catch (error) {
+                log(`Failed to connect: ${error.message}`, 'error');
+            }
+        };
+
+        // Audio player event listeners
+        audioPlayer.addEventListener('loadstart', () => {
+            log('Audio player: Load started', 'info');
+        });
+
+        audioPlayer.addEventListener('canplay', () => {
+            log('Audio player: Can play', 'success');
+        });
+
+        audioPlayer.addEventListener('playing', () => {
+            log('Audio player: Playing', 'success');
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            log('Audio player: Paused', 'info');
+        });
+
+        audioPlayer.addEventListener('ended', () => {
+            log('Audio player: Ended', 'info');
+        });
+
+        audioPlayer.addEventListener('error', (e) => {
+            log(`Audio player error: ${e.message || 'Unknown error'}`, 'error');
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (hls) {
+                hls.destroy();
+            }
+            if (ws) {
+                ws.close();
+            }
+        });
+
+        // Initialize UI
+        updateAudioInfo('Not connected', null);
+    </script>
+</body>
+
+</html>
