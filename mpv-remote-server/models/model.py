@@ -156,49 +156,20 @@ class MPVAudioSubtitleTrack(BaseModel):
         extra = "allow"
 
 
-class AudioStreamConfig(BaseModel):
-    sample_rate: int = 48000
-    channels: int = 2
-    bits_per_sample: int = 16
-    chunk_ms: int = 20
-    buffer_ms: int = 1000
+class HLSConfig(BaseModel):
+    segment_duration: int = Field(default=6)
+    bitrate: str = Field(default="256k")
 
-    @property
-    def bytes_per_sample(self) -> int:
-        return self.bits_per_sample // 8
-
-    @property
-    def chunk_size(self) -> int:
-        samples_per_chunk = (self.sample_rate * self.chunk_ms) // 1000
-        return samples_per_chunk * self.bytes_per_sample * self.channels
+    class Config:
+        populate_by_name = True
 
 
-class PCMChunk(BaseModel):
-    ts_sec: int
-    ts_usec: int
+class HLSSegmentInfo(BaseModel):
+    name: str
+    url: str
+    number: int
     size: int
-    payload: bytes = Field(exclude=True)
+    instance_id: str = Field(alias="instanceId")
 
-    def to_wire_format(self) -> bytes:
-        header = struct.pack("<IIQ", self.ts_sec, self.ts_usec, self.size)
-        return header + self.payload
-
-    @classmethod
-    def from_wire_format(cls, data: bytes) -> "PCMChunk":
-        ts_sec, ts_usec, size = struct.unpack("<IIQ", data[:16])
-        payload = data[16 : 16 + size]
-        return cls(ts_sec=ts_sec, ts_usec=ts_usec, size=size, payload=payload)
-
-
-class AudioStream(BaseModel):
-    config: AudioStreamConfig
-    buffer: List[PCMChunk] = Field(default_factory=list)
-
-
-class AudioSyncRequest(BaseModel):
-    client_timestamp: float
-
-
-class AudioSyncResponse(BaseModel):
-    server_timestamp: float
-    latency_correction: float
+    class Config:
+        populate_by_name = True

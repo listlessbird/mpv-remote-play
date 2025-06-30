@@ -95,14 +95,14 @@ class ThumbnailGenerator:
     async def _check_ffmpeg_available(self) -> bool:
         try:
             logger.debug("Checking ffmpeg availability...")
-            
+
             def run_ffmpeg_check():
                 try:
                     result = subprocess.run(
                         ["ffmpeg", "-version"],
                         capture_output=True,
                         text=True,
-                        timeout=10
+                        timeout=10,
                     )
                     return result.returncode, result.stdout, result.stderr
                 except FileNotFoundError:
@@ -111,16 +111,16 @@ class ThumbnailGenerator:
                     return -1, None, "ffmpeg check timed out"
                 except Exception as e:
                     return -1, None, str(e)
-            
+
             loop = asyncio.get_event_loop()
             returncode, stdout, stderr = await loop.run_in_executor(
                 self.executor, run_ffmpeg_check
             )
-            
+
             if returncode is None:
                 logger.error("FFmpeg not found")
                 return False
-                
+
             logger.debug("FFmpeg check return code: %d", returncode)
             if stdout:
                 logger.debug("FFmpeg check stdout: %s", stdout[:200])
@@ -134,14 +134,14 @@ class ThumbnailGenerator:
     async def _check_ffprobe_available(self) -> bool:
         try:
             logger.debug("Checking ffprobe availability...")
-            
+
             def run_ffprobe_check():
                 try:
                     result = subprocess.run(
                         ["ffprobe", "-version"],
                         capture_output=True,
                         text=True,
-                        timeout=10
+                        timeout=10,
                     )
                     return result.returncode, result.stdout, result.stderr
                 except FileNotFoundError:
@@ -150,16 +150,16 @@ class ThumbnailGenerator:
                     return -1, None, "ffprobe check timed out"
                 except Exception as e:
                     return -1, None, str(e)
-            
+
             loop = asyncio.get_event_loop()
             returncode, stdout, stderr = await loop.run_in_executor(
                 self.executor, run_ffprobe_check
             )
-            
+
             if returncode is None:
                 logger.error("FFprobe not found")
                 return False
-                
+
             logger.debug("FFprobe check return code: %d", returncode)
             if stdout:
                 logger.debug("FFprobe check stdout: %s", stdout[:200])
@@ -226,10 +226,7 @@ class ThumbnailGenerator:
             def run_ffmpeg_thumbnail():
                 try:
                     result = subprocess.run(
-                        ffmpeg_args,
-                        capture_output=True,
-                        text=True,
-                        timeout=60
+                        ffmpeg_args, capture_output=True, text=True, timeout=60
                     )
                     return result.returncode, result.stdout, result.stderr
                 except subprocess.TimeoutExpired:
@@ -255,7 +252,7 @@ class ThumbnailGenerator:
                 error_msg = (
                     stderr_text
                     if stderr_text
-                    else f"FFmpeg failed with return code {result.returncode}"
+                    else f"FFmpeg failed with return code {returncode}"
                 )
                 logger.error(
                     "FFmpeg failed for %s (code %d): %s",
@@ -311,7 +308,7 @@ class ThumbnailGenerator:
                         ],
                         capture_output=True,
                         text=True,
-                        timeout=30
+                        timeout=30,
                     )
                     return result.returncode, result.stdout, result.stderr
                 except subprocess.TimeoutExpired:
@@ -337,7 +334,7 @@ class ThumbnailGenerator:
                 error_msg = (
                     stderr_text
                     if stderr_text
-                    else f"FFprobe failed with return code {result.returncode}"
+                    else f"FFprobe failed with return code {returncode}"
                 )
                 logger.error(
                     "FFprobe failed for %s (code %d): %s",

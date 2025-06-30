@@ -1,21 +1,23 @@
+import json
 from config import settings
 from services.mpv_manager import mpv_manager
 from services.shares import MediaShare
 from models.model import (
     MPVCommand,
+    MPVResponse,
     RemoteCommand,
 )
-from services.audio_stream import audio_stream_service
-
+from services.hls_stream import hls_stream_service
 
 from datetime import datetime
 import time
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Response, WebSocket
 from fastapi.responses import FileResponse
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
+import asyncio
 
 import logging
 
@@ -48,6 +50,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/")
+async def get_client():
+    return FileResponse("client-test.html")
 
 
 @app.get("/api/status")
@@ -218,46 +225,75 @@ async def get_thumbnail(thumbnail_id: str):
     )
 
 
-@app.websocket("/api/instances/{instance_id}/audio-stream")
-async def stream_audio(ws: WebSocket, instance_id: str):
-    await ws.accept()
+@app.get("/api/instances/{instance_id}/hls/playlist.m3u8")
+async def get_hls_playlist(instance_id: str):
+    playlist_path = await hls_stream_service.get_playlist_path(instance_id)
+    if not playlist_path:
+        raise HTTPException(status_code=404, detail="HLS playlist not found")
 
-    config = audio_stream_service.config
+    with open(playlist_path, "r") as f:
+        content = f.read()
 
-    await ws.send_json({"type": "config", "data": config.model_dump_json()})
+    return Response(content, media_type="application/vnd.apple.mpegurl")
 
-    await audio_stream_service.add_ws_client(instance_id, ws)
 
-    try:
-        while True:
+@app.get("/api/instances/{instance_id}/hls/segment{segment_num}.aac")
+async def get_hls_segment(instance_id: str, segment_num: int):
+    segment_path = await hls_stream_service.get_segment_path(instance_id, segment_num)
+    if not segment_path:
+        raise HTTPException(status_code=404, detail="HLS segment not found")
+
+    with open(segment_path, "rb") as f:
+        content = f.read()
+
+    return Response(content, media_type="audio/aac")
+
+
+@app.websocket("/api/instances/{instance_id}/state")
+async def get_player_state(websocket: WebSocket, instance_id: str):
+    await websocket.accept()
+    # logger.debug(f"WebSocket connected for instance {instance_id}")
+
+    while True:
+        try:
+            instance = await mpv_manager.get_instance(instance_id)
+            if not instance:
+                logger.warning(f"Instance {instance_id} not found")
+                await websocket.send_json({"error": "Instance not found"})
+                await asyncio.sleep(1)
+                continue
+
+            cmds = [
+                MPVCommand(command=["get_property", "time-pos"], **{}),
+                MPVCommand(command=["get_property", "duration"], **{}),
+                MPVCommand(command=["get_property", "pause"], **{}),
+                MPVCommand(command=["get_property", "volume"], **{}),
+                MPVCommand(command=["get_property", "title"], **{}),
+            ]
+
+            # Send commands and collect results
+            tasks = [mpv_manager.send_command(instance_id, cmd) for cmd in cmds]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # logger.debug(f"Results: {results}")
+
+            processed_results = [
+                {
+                    "command": cmd.command,
+                    "data": result.model_dump()
+                    if isinstance(result, MPVResponse)
+                    else None,
+                }
+                for cmd, result in zip(cmds, results)
+            ]
+
+            await websocket.send_json(processed_results)
+            await asyncio.sleep(3)
+
+        except Exception as error:
+            logger.error(f"WebSocket error for instance {instance_id}: {error}")
             try:
-                data = await ws.receive_json()
-
-                if data.get("type") == "sync":
-                    # TODO: sync correction
-
-                    server_time = time.time()
-                    await ws.send_json(
-                        {
-                            "type": "sync_response",
-                            "server_timestamp": server_time,
-                            "latency_correction": 0,
-                        }
-                    )
-            except WebSocketDisconnect:
-                break
-            except Exception as e:
-                logger.error(f"Error websocket: {e}")
-                break
-    finally:
-        await audio_stream_service.remove_ws_client(instance_id, ws)
-
-
-@app.get("/api/instances/{instance_id}/audio/status")
-async def get_audio_status(instance_id: str):
-    """Get audio streaming status"""
-    return {
-        "streaming": instance_id in audio_stream_service.active_streams,
-        "clients": len(audio_stream_service.ws_clients.get(instance_id, [])),
-        "config": audio_stream_service.config.model_dump_json(),
-    }
+                await websocket.close(code=1011, reason="Internal server error")
+            except:
+                pass
+            break

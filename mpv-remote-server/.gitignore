@@ -2,3 +2,7 @@ thumbnails/
 .venv/
 __pycache__/
 media-cache.json
+
+*-test.py
+*-test.html
+hls/

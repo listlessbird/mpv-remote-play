@@ -78,20 +78,7 @@ class MPVManager:
             ]
 
             if stream_audio:
-                from services.audio_stream import audio_stream_service
-
-                pipe_path = audio_stream_service.get_named_pipe_path(instance_id)
-
-                audio_args = [
-                    # audio out config
-                    "--ao=pcm",
-                    f"--ao-pcm-file={pipe_path}",
-                    "--ao-pcm-waveheader=no",
-                    "--audio-format=s16",
-                    "--audio-samplerate=48000",
-                    "--audio-channels=stereo",
-                ]
-                args.extend(audio_args)
+                args.append("--ao=null")
 
             if media_file:
                 args.append(media_file)
@@ -125,10 +112,12 @@ class MPVManager:
                 logger.error(f"IPC connection failed for instance {instance_id}: {e}")
                 raise Exception("MPV Started but IPC failed")
 
-            if stream_audio:
-                from services.audio_stream import audio_stream_service
+            if stream_audio and media_file:
+                from services.hls_stream import hls_stream_service
 
-                asyncio.create_task(audio_stream_service.start_stream(instance_id))
+                asyncio.create_task(
+                    hls_stream_service.start_stream(instance_id, media_file)
+                )
 
             asyncio.create_task(self._monitor_process(instance_id, process))
             asyncio.create_task(self._clean_dead_instances())
@@ -569,6 +558,10 @@ class MPVManager:
 
     async def stop_instance(self, instance_id: str):
         logger.info(f"Stopping instance {instance_id}")
+
+        from services.hls_stream import hls_stream_service
+
+        await hls_stream_service.stop_stream(instance_id)
 
         instance = self.instances.get(instance_id)
         if instance and instance.process:

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
         ".mkv",
     }
     thumbnails_dir: Path = Path.cwd() / "thumbnails"
+    hls_dir: Path = Path.cwd() / "hls"
     cache_file: Path = Path.cwd() / "media-cache.json"
     media_shares: dict[str, str] = {
         "media": "E:/dls/cdrama",
