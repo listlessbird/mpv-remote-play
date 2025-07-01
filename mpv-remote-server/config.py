@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     }
     thumbnails_dir: Path = Path.cwd() / "thumbnails"
     hls_dir: Path = Path.cwd() / "hls"
+    hls_min_segment_for_ready: int = 3
     cache_file: Path = Path.cwd() / "media-cache.json"
     media_shares: dict[str, str] = {
         "media": "E:/dls/cdrama",

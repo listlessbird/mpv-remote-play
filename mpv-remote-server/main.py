@@ -3,6 +3,7 @@ from config import settings
 from services.mpv_manager import mpv_manager
 from services.shares import MediaShare
 from models.model import (
+    HLSSegmentInfo,
     MPVCommand,
     MPVResponse,
     RemoteCommand,
@@ -106,8 +107,8 @@ async def create_instance(body: Dict = {}):
                     "message": "Reused existing MPV instance",
                 }
             except Exception as error:
-                print(f"Failed to send command to existing instance: {error}")
-                print("Creating new instance")
+                logger.error(f"Failed to send command to existing instance: {error}")
+                logger.info("Creating new instance")
         else:
             return {
                 "instanceId": running_instance_id,
@@ -120,7 +121,8 @@ async def create_instance(body: Dict = {}):
         )
         return {
             "instanceId": instance_id,
-            "message": "MPV instance created successfully",
+            "message": "MPV instance created successfully, streamAudio: "
+            + str(stream_audio),
         }
     except Exception as error:
         raise HTTPException(
@@ -297,3 +299,63 @@ async def get_player_state(websocket: WebSocket, instance_id: str):
             except:
                 pass
             break
+
+
+@app.get("/api/instances/{instance_id}/hls/status")
+async def get_hls_status(instance_id: str):
+    status = await hls_stream_service.get_stream_status(instance_id)
+
+    return status.model_dump_json()
+
+
+@app.websocket("/api/instances/{instance_id}/hls-events")
+async def hls_events_socket(ws: WebSocket, instance_id: str):
+    await ws.accept()
+    logger.info(f"HLS events socket connected for instance {instance_id}")
+
+    if instance_id not in hls_stream_service.ws_clients:
+        hls_stream_service.ws_clients[instance_id] = set()
+    hls_stream_service.ws_clients[instance_id].add(ws)
+
+    async def on_segment(seg_info: HLSSegmentInfo):
+        try:
+            await ws.send_json(
+                {
+                    "type": "segment",
+                    "data": seg_info.model_dump_json(),
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error sending segment event to client: {e}")
+
+    async def on_ready(instance_id: str):
+        try:
+            status = await hls_stream_service.get_stream_status(instance_id)
+            await ws.send_json(
+                {
+                    "type": "ready",
+                    "data": status.model_dump_json(),
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error sending ready event to client: {e}")
+
+    hls_stream_service.add_segment_callback(instance_id, on_segment)
+    hls_stream_service.add_on_ready_callback(instance_id, on_ready)
+
+    status = await hls_stream_service.get_stream_status(instance_id)
+    await ws.send_json(
+        {
+            "type": "ready",
+            "data": status.model_dump_json(),
+        }
+    )
+
+    try:
+        while True:
+            await ws.receive_text()
+    except Exception as e:
+        logger.error(f"HLS events socket error for instance {instance_id}: {e}")
+    finally:
+        hls_stream_service.ws_clients[instance_id].discard(ws)
+        hls_stream_service.remove_segment_callback(instance_id, on_segment)

@@ -21,7 +21,7 @@ from models.model import (
 )
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.ERROR)
 if not logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter(

@@ -11,6 +11,7 @@ interface MPVInstanceStore {
   validateInstance: () => Promise<boolean>
   clearIfInvalid: () => Promise<void>
   clearActiveInstance: () => void
+  initializeStore: () => Promise<void>
 }
 
 export const useMPVInstanceStore = create<MPVInstanceStore>()(
@@ -50,6 +51,39 @@ export const useMPVInstanceStore = create<MPVInstanceStore>()(
     },
     clearActiveInstance: () => {
       set({ activeInstance: null })
+    },
+    initializeStore: async () => {
+      const { activeInstance } = get()
+      if (activeInstance) {
+        console.log(
+          "[MPVInstanceStore] Checking existing instance on startup:",
+          activeInstance.id
+        )
+        try {
+          const instances = await apiClient.getMPVInstances()
+          const exists = instances.some(
+            (i) => i.id === activeInstance.id && i.status === "running"
+          )
+          if (!exists) {
+            console.log(
+              "[MPVInstanceStore] Stale instance found, clearing:",
+              activeInstance.id
+            )
+            set({ activeInstance: null })
+          } else {
+            console.log(
+              "[MPVInstanceStore] Instance is valid:",
+              activeInstance.id
+            )
+          }
+        } catch (error) {
+          console.error(
+            "[MPVInstanceStore] Failed to validate instance on startup, clearing:",
+            error
+          )
+          set({ activeInstance: null })
+        }
+      }
     },
   }))
 )

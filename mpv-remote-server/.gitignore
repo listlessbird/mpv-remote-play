@@ -6,3 +6,4 @@ media-cache.json
 *-test.py
 *-test.html
 hls/
+.cursor

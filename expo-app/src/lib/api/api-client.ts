@@ -7,8 +7,8 @@ import type {
   ShareContents,
   TracksResponse,
 } from "@/lib/api/api-types"
-import { fetch, type FetchRequestInit } from "expo/fetch"
 import { useSettingsStore } from "@/store/settings"
+import { type FetchRequestInit, fetch } from "expo/fetch"
 
 class ApiClient {
   private get baseUrl() {
@@ -73,12 +73,12 @@ class ApiClient {
     return this.request<MPVInstance[]>("/api/instances")
   }
 
-  async createMPVInstance(mediaFile?: string) {
+  async createMPVInstance(mediaFile?: string, streamAudio = false) {
     return this.request<{ instanceId: string; message: string }>(
       "/api/instances",
       {
         method: "POST",
-        body: JSON.stringify({ mediaFile }),
+        body: JSON.stringify({ mediaFile, streamAudio }),
       }
     )
   }

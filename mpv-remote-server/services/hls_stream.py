@@ -13,7 +13,7 @@ from watchdog.observers.api import BaseObserver
 from watchdog.events import FileSystemEventHandler
 from pathlib import Path
 
-from models.model import HLSConfig, HLSSegmentInfo
+from models.model import HLSConfig, HLSSegmentInfo, HLSStreamStatus
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -71,6 +71,28 @@ class HLSStreamService:
         self.segment_callbacks: Dict[str, Set[Callable]] = {}
         self.ws_clients: Dict[str, Set[WebSocket]] = {}
         self.executor = ThreadPoolExecutor(max_workers=4)
+        self.min_segment_for_ready = settings.hls_min_segment_for_ready
+        self.stream_readiness: Dict[str, bool] = {}
+        self.segment_counts: Dict[str, int] = {}
+        self.on_ready_cbs: Dict[str, Set[Callable]] = {}
+
+    async def is_stream_ready(self, instance_id: str) -> bool:
+        return self.stream_readiness.get(instance_id, False)
+
+    async def wait_until_stream_ready(
+        self, instance_id: str, timeout: float = 10.0
+    ) -> bool:
+        start_t = asyncio.get_event_loop().time()
+        while (asyncio.get_event_loop().time() - start_t) < timeout:
+            if await self.is_stream_ready(instance_id):
+                return True
+            await asyncio.sleep(0.5)
+        return False
+
+    def add_on_ready_callback(self, instance_id: str, callback: Callable):
+        if instance_id not in self.on_ready_cbs:
+            self.on_ready_cbs[instance_id] = set()
+        self.on_ready_cbs[instance_id].add(callback)
 
     async def start_stream(
         self, instance_id: str, media_file: str, config: Optional[HLSConfig] = None
@@ -164,6 +186,7 @@ class HLSStreamService:
             self.segment_watchers[instance_id] = observer
 
             asyncio.create_task(self._monitor_process(instance_id, process))
+            asyncio.create_task(self._periodic_segment_check(instance_id))
             self._log_ffmpeg_stderr(instance_id, process)
 
             logger.info(f"HLS stream for {media_file} started in {out_dir}")
@@ -188,6 +211,10 @@ class HLSStreamService:
             return
 
         logger.info(f"Stopping HLS stream for {instance_id}")
+
+        self.stream_readiness.pop(instance_id, None)
+        self.segment_counts.pop(instance_id, None)
+        self.on_ready_cbs.pop(instance_id, None)
 
         stream = self.active_streams[instance_id]
         process = stream["process"]
@@ -407,6 +434,20 @@ class HLSStreamService:
 
     async def _handle_new_segment(self, segment_info: HLSSegmentInfo):
         instance_id = segment_info.instance_id
+
+        self.segment_counts[instance_id] = self.segment_counts.get(instance_id, 0) + 1
+
+        if not self.stream_readiness.get(instance_id, False):
+            if self.segment_counts[instance_id] > self.min_segment_for_ready:
+                self.stream_readiness[instance_id] = True
+                logger.info(f"HLS Stream for {instance_id} is ready")
+
+                for callback in self.on_ready_cbs.get(instance_id, set()):
+                    try:
+                        await callback(instance_id)
+                    except Exception as e:
+                        logger.error(f"Error in hls on_ready callback: {e}")
+
         callbacks = self.segment_callbacks.get(instance_id, set())
         for callback in callbacks:
             try:
@@ -414,9 +455,91 @@ class HLSStreamService:
             except Exception as e:
                 logger.error(f"Error in segment callback: {e}")
 
+    async def _periodic_segment_check(self, instance_id: str):
+        logger.debug(f"Starting periodic segment check for {instance_id}")
+
+        while instance_id in self.active_streams:
+            try:
+                stream = self.active_streams.get(instance_id)
+                if not stream:
+                    break
+
+                out_dir = stream["output_dir"]
+
+                if out_dir.exists():
+                    segment_files = list(out_dir.glob("segment*.aac"))
+                    current_count = len(segment_files)
+
+                    old_count = self.segment_counts.get(instance_id, 0)
+
+                    if current_count > old_count:
+                        logger.debug(
+                            f"Found {current_count} segments for {instance_id} (was {old_count})"
+                        )
+                        self.segment_counts[instance_id] = current_count
+
+                        if not self.stream_readiness.get(instance_id, False):
+                            if current_count >= self.min_segment_for_ready:
+                                self.stream_readiness[instance_id] = True
+                                logger.info(
+                                    f"HLS Stream for {instance_id} is ready (fallback check)"
+                                )
+
+                                for callback in self.on_ready_cbs.get(
+                                    instance_id, set()
+                                ):
+                                    try:
+                                        await callback(instance_id)
+                                    except Exception as e:
+                                        logger.error(
+                                            f"Error in hls on_ready callback: {e}"
+                                        )
+
+                await asyncio.sleep(1.0)
+
+            except Exception as e:
+                logger.error(f"Error in periodic segment check for {instance_id}: {e}")
+                await asyncio.sleep(2.0)
+
+        logger.debug(f"Stopped periodic segment check for {instance_id}")
+
+    async def get_stream_status(self, instance_id: str) -> HLSStreamStatus:
+        stream = self.active_streams.get(instance_id)
+        if not stream:
+            return HLSStreamStatus(
+                status="not_found",
+                segmentCount=0,
+                playlistUrl="",
+                mediaFile="",
+            )
+
+        return HLSStreamStatus(
+            status="ready"
+            if self.stream_readiness.get(instance_id, False)
+            else "generating",
+            segmentCount=self.segment_counts.get(instance_id, 0),
+            playlistUrl=f"/api/instances/{instance_id}/hls/playlist.m3u8",
+            mediaFile=stream["media_file"],
+        )
+
     async def shutdown(self):
         for instance_id in list(self.active_streams.keys()):
             await self.stop_stream(instance_id)
+
+        for instance_id in list(self.segment_watchers.keys()):
+            self.segment_watchers[instance_id].stop()
+            self.segment_watchers[instance_id].join()
+            del self.segment_watchers[instance_id]
+
+        for instance_id in list(self.on_ready_cbs.keys()):
+            self.on_ready_cbs[instance_id].clear()
+            del self.on_ready_cbs[instance_id]
+
+        self.segment_callbacks.clear()
+        self.ws_clients.clear()
+        self.stream_readiness.clear()
+        self.segment_counts.clear()
+        self.on_ready_cbs.clear()
 
         self.executor.shutdown(wait=True)
         logger.info("HLS stream service shutdown complete")

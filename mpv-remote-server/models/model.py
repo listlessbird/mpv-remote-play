@@ -173,3 +173,10 @@ class HLSSegmentInfo(BaseModel):
 
     class Config:
         populate_by_name = True
+
+
+class HLSStreamStatus(BaseModel):
+    status: Literal["ready", "generating", "not_found"]
+    segment_count: int = Field(alias="segmentCount", default=0)
+    playlist_url: str = Field(alias="playlistUrl")
+    media_file: str = Field(alias="mediaFile")
