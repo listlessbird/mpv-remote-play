@@ -69,34 +69,38 @@ export class HLSAudioService {
       const playerState = await TrackPlayer.getPlaybackState()
       const playerPosition = (await TrackPlayer.getProgress()).position
 
-      console.log(
-        "[HLSAudioService] Syncing - MPV paused:",
-        mpvState.paused,
-        "Player state:",
-        playerState.state,
-        "Position diff:",
-        Math.abs(playerPosition - mpvState.position)
-      )
+      // console.log(
+      //   "[HLSAudioService:Sync] Syncing - MPV paused:",
+      //   mpvState.paused,
+      //   "Player state:",
+      //   playerState.state,
+      //   "Position diff:",
+      //   Math.abs(playerPosition - mpvState.position)
+      // )
 
       if (mpvState.paused && playerState.state === State.Playing) {
         await TrackPlayer.pause()
-        console.log("[HLSAudioService] Paused TrackPlayer to sync with MPV")
+        // console.log(
+        //   "[HLSAudioService:Sync] Paused TrackPlayer to sync with MPV"
+        // )
       } else if (!mpvState.paused && playerState.state !== State.Playing) {
         await TrackPlayer.play()
-        console.log("[HLSAudioService] Started TrackPlayer to sync with MPV")
+        // console.log(
+        //   "[HLSAudioService:Sync] Started TrackPlayer to sync with MPV"
+        // )
       }
 
       const positionDiff = Math.abs(playerPosition - mpvState.position)
 
       if (positionDiff > 2) {
-        console.log(
-          "[HLSAudioService] Seeking to sync position:",
-          mpvState.position
-        )
+        // console.log(
+        //   "[HLSAudioService:Sync] Seeking to sync position:",
+        //   mpvState.position
+        // )
         await TrackPlayer.seekTo(mpvState.position)
       }
     } catch (error) {
-      console.error("[HLSAudioService] Error syncing with MPV:", error)
+      // console.error("[HLSAudioService:Sync] Error syncing with MPV:", error)
     } finally {
       this.isSyncing = false
     }

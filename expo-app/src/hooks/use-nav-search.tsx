@@ -1,7 +1,7 @@
 import { colors } from "@/lib/constants/tokens"
 import { useNavigation } from "expo-router"
 import { useLayoutEffect, useState } from "react"
-import { SearchBarProps } from "react-native-screens"
+import type { SearchBarProps } from "react-native-screens"
 
 const defaultSearchOptions: SearchBarProps = {
   tintColor: colors.primary,

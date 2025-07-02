@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from "react"
+import { FloatingPlayer } from "@/components/floating-player"
 import { colors, fontSize } from "@/lib/constants/tokens"
+import { FontAwesome, FontAwesome6 } from "@expo/vector-icons"
 import { BlurView } from "expo-blur"
 import { Tabs, usePathname, useRouter } from "expo-router"
-import { StyleSheet, Platform } from "react-native"
-import { FontAwesome, FontAwesome6 } from "@expo/vector-icons"
-import { FloatingPlayer } from "@/components/floating-player"
+import React, { useEffect, useState } from "react"
+import { Platform, StyleSheet } from "react-native"
 import TrackPlayer, {
   type Track,
   useActiveTrack,
@@ -98,14 +98,14 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-      <FloatingPlayer
+      {/* <FloatingPlayer
         style={{
           position: "absolute",
           bottom: 78,
           left: 8,
           right: 8,
         }}
-      />
+      /> */}
     </>
   )
 }

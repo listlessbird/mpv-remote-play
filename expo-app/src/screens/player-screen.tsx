@@ -1,36 +1,38 @@
+import { TrackSelectorSheet } from "@/components/track-selector-sheet"
+import { useHlsPlayback } from "@/hooks/use-hls-playback"
 import { usePlayerCommands } from "@/hooks/use-player-commands"
-import { useTrackSync } from "@/hooks/use-track-sync"
+import { useRemotePlaybackSync } from "@/hooks/use-remote-playback-sync"
 import { unknownVideoImageUri } from "@/lib/constants/images"
 import { colors, fontSize } from "@/lib/constants/tokens"
 import { defaultStyles } from "@/styles"
-import { TrackSelectorSheet } from "@/components/track-selector-sheet"
-import type BottomSheet from "@gorhom/bottom-sheet"
-import { useRef } from "react"
-import Slider from "@react-native-community/slider"
-import { Image } from "expo-image"
-import { LinearGradient } from "expo-linear-gradient"
-import { useCallback, useEffect, useState } from "react"
-import {
-  Dimensions,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Pressable,
-} from "react-native"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
-import TrackPlayer, {
-  useActiveTrack,
-  useIsPlaying,
-  useProgress,
-} from "react-native-track-player"
 import {
   FontAwesome,
   FontAwesome6,
   Ionicons,
   MaterialCommunityIcons,
 } from "@expo/vector-icons"
+import type BottomSheet from "@gorhom/bottom-sheet"
+import Slider from "@react-native-community/slider"
+import { Image } from "expo-image"
+import { LinearGradient } from "expo-linear-gradient"
+import { useRef } from "react"
+import { useCallback, useEffect, useState } from "react"
+import {
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native"
+import { Animated } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+import TrackPlayer, {
+  useActiveTrack,
+  useIsPlaying,
+  useProgress,
+} from "react-native-track-player"
 import type { Track } from "react-native-track-player"
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window")
@@ -41,10 +43,10 @@ export function PlayerScreen() {
   const { playing: trackPlayerPlaying } = useIsPlaying()
   const { position: trackPlayerPosition, duration: trackPlayerDuration } =
     useProgress()
-  const { mpvState } = useTrackSync()
+  const { mpvState } = useRemotePlaybackSync()
   const insets = useSafeAreaInsets()
   const {
-    play,
+    // play,
     pause,
     stop,
     seek,
@@ -55,11 +57,50 @@ export function PlayerScreen() {
     activeInstance,
   } = usePlayerCommands()
 
+  const {
+    hlsPlaybackState,
+    startHlsPlayback,
+    hlsStatus,
+    isLoading: isHlsLoading,
+    isReady: isHlsReady,
+  } = useHlsPlayback()
+  console.log("hlsPlaybackState", {
+    hlsPlaybackState,
+    hlsStatus,
+    isHlsLoading,
+    isHlsReady,
+  })
+
+  const startingTrackRef = useRef<string | null>(null)
+  const hlsStartTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   const playing = mpvState ? !mpvState.paused : trackPlayerPlaying
   const position = mpvState?.position ?? trackPlayerPosition
   const duration = mpvState?.duration ?? trackPlayerDuration
 
   const bottomSheetRef = useRef<BottomSheet>(null)
+  const loadingAnimation = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    if (isHlsLoading) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(loadingAnimation, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(loadingAnimation, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start()
+    } else {
+      loadingAnimation.setValue(0)
+    }
+  }, [isHlsLoading, loadingAnimation])
 
   const [volume, setVolumeState] = useState(0.5)
   const [isSeeking, setIsSeeking] = useState(false)
@@ -83,13 +124,60 @@ export function PlayerScreen() {
     return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    if (
+      activeTrack?.url &&
+      !activeInstance &&
+      startingTrackRef.current !== activeTrack.url &&
+      hlsPlaybackState.status !== "creating" &&
+      hlsPlaybackState.status !== "waiting"
+    ) {
+      console.log("Starting HLS playback for", activeTrack.url)
+      startingTrackRef.current = activeTrack.url
+
+      // Clear any existing timeout
+      if (hlsStartTimeoutRef.current) {
+        clearTimeout(hlsStartTimeoutRef.current)
+      }
+
+      // Add a small delay to prevent rapid-fire starts
+      hlsStartTimeoutRef.current = setTimeout(() => {
+        // startHlsPlayback(activeTrack.url)
+      }, 100)
+    }
+  }, [activeTrack?.url, activeInstance, hlsPlaybackState.status])
+
+  // Reset the starting track ref when we have an active instance or when track changes
+  useEffect(() => {
+    if (activeInstance) {
+      startingTrackRef.current = null
+    }
+  }, [activeInstance])
+
+  useEffect(() => {
+    if (hlsPlaybackState.status === "error") {
+      startingTrackRef.current = null
+    }
+  }, [hlsPlaybackState.status])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hlsStartTimeoutRef.current) {
+        clearTimeout(hlsStartTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const handlePlayPause = useCallback(() => {
     if (playing) {
       pause()
     } else {
-      play()
+      if (activeTrack?.url) {
+        // startHlsPlayback(activeTrack.url)
+      }
     }
-  }, [playing, play, pause])
+  }, [playing, activeTrack?.url, pause])
 
   const handleSeekStart = useCallback(() => {
     setIsSeeking(true)
@@ -171,20 +259,43 @@ export function PlayerScreen() {
         </View>
 
         <View style={styles.progressSection}>
-          <Slider
-            style={styles.progressSlider}
-            value={displayPosition}
-            minimumValue={0}
-            maximumValue={duration}
-            onSlidingStart={handleSeekStart}
-            onValueChange={handleSeekChange}
-            onSlidingComplete={handleSeekEnd}
-            minimumTrackTintColor={colors.primary}
-            maximumTrackTintColor={"rgba(255, 255, 255, 0.15)"}
-            thumbTintColor={colors.primary}
-          />
+          <View style={styles.progressContainer}>
+            <Slider
+              style={styles.progressSlider}
+              value={displayPosition}
+              minimumValue={0}
+              maximumValue={duration}
+              onSlidingStart={handleSeekStart}
+              onValueChange={handleSeekChange}
+              onSlidingComplete={handleSeekEnd}
+              minimumTrackTintColor={colors.primary}
+              maximumTrackTintColor={"rgba(255, 255, 255, 0.15)"}
+              thumbTintColor={colors.primary}
+              disabled={isHlsLoading}
+            />
+            {isHlsLoading && (
+              <Animated.View
+                style={[
+                  styles.loadingIndicator,
+                  {
+                    transform: [
+                      {
+                        translateX: loadingAnimation.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [-50, screenWidth - 48 - 50],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            )}
+          </View>
+
           <View style={styles.timeLabels}>
-            <Text style={styles.timeText}>{formatTime(displayPosition)}</Text>
+            <Text style={styles.timeText}>
+              {isHlsLoading ? "Loading..." : formatTime(displayPosition)}
+            </Text>
             <Text style={styles.timeText}>{formatTime(duration)}</Text>
           </View>
         </View>
@@ -211,18 +322,26 @@ export function PlayerScreen() {
             style={({ pressed }) => [
               styles.playPauseButton,
               pressed && styles.playPauseButtonPressed,
+              isHlsLoading && styles.playPauseButtonDisabled,
             ]}
+            disabled={isHlsLoading}
           >
             <LinearGradient
-              colors={[colors.primary, "#e63946"]}
+              colors={
+                isHlsLoading ? ["#666", "#444"] : [colors.primary, "#e63946"]
+              }
               style={styles.playPauseGradient}
             >
-              <FontAwesome
-                name={playing ? "pause" : "play"}
-                size={36}
-                color="#ffffff"
-                style={playing ? {} : { marginLeft: 4 }}
-              />
+              {isHlsLoading ? (
+                <Text style={styles.loadingText}>...</Text>
+              ) : (
+                <FontAwesome
+                  name={playing ? "pause" : "play"}
+                  size={36}
+                  color="#ffffff"
+                  style={playing ? {} : { marginLeft: 4 }}
+                />
+              )}
             </LinearGradient>
           </Pressable>
 
@@ -467,5 +586,26 @@ const styles = StyleSheet.create({
   volumeSlider: {
     flex: 1,
     height: 32,
+  },
+  progressContainer: {
+    position: "relative",
+  },
+  loadingIndicator: {
+    position: "absolute",
+    top: "50%",
+    width: 50,
+    height: 4,
+    backgroundColor: colors.primary,
+    borderRadius: 2,
+    marginTop: -2,
+    opacity: 0.8,
+  },
+  playPauseButtonDisabled: {
+    opacity: 0.6,
+  },
+  loadingText: {
+    color: "#ffffff",
+    fontSize: 24,
+    fontWeight: "bold",
   },
 })

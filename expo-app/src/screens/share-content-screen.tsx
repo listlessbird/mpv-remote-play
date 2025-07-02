@@ -77,7 +77,7 @@ export function ShareContentScreen() {
 
   const handleFilePress = useCallback(
     async (file: Track) => {
-      console.log(file)
+      console.log("[ShareContentScreen] handleFilePress", file)
 
       if (!isConnected) {
         Alert.alert(
@@ -111,41 +111,39 @@ export function ShareContentScreen() {
 
         await new Promise((resolve) => setTimeout(resolve, 1000))
 
-        if (fileIndex > 0) {
-          await TrackPlayer.skip(fileIndex)
-        }
+        // if (fileIndex > 0) {
+        //   await TrackPlayer.skip(fileIndex)
+        // }
 
-        await TrackPlayer.play()
+        // await TrackPlayer.play()
 
-        try {
-          if (activeInstance) {
-            await apiClient.sendMPVCommand(activeInstance.id, {
-              action: "loadfile",
-              params: { file: file.src, mode: "replace" },
-            })
-          } else {
-            const { instanceId } = await apiClient.createMPVInstance(file.src)
-            setActiveInstance({
-              id: instanceId,
-              status: "running",
-              lastSeen: new Date().toISOString(),
-            })
-          }
-        } catch (mpvError) {
-          console.error("MPV sync failed when selecting file", mpvError)
-        }
+        // try {
+        //   if (activeInstance) {
+        //     await apiClient.sendMPVCommand(activeInstance.id, {
+        //       action: "loadfile",
+        //       params: { file: file.src, mode: "replace" },
+        //     })
+        //   } else {
+        //     const { instanceId } = await apiClient.createMPVInstance(file.src)
+        //     setActiveInstance({
+        //       id: instanceId,
+        //       status: "running",
+        //       lastSeen: new Date().toISOString(),
+        //     })
+        //   }
+        // } catch (mpvError) {
+        //   console.error("MPV sync failed when selecting file", mpvError)
+        // }
 
         router.push("/player")
       } catch (error) {
-        console.error(error)
+        console.error("[ShareContentScreen] handleFilePress error", error)
       }
     },
     [
       isConnected,
       filteredContents,
       refetch,
-      activeInstance,
-      setActiveInstance,
       router,
       setPlaylist,
       loadPlaylistToPlayer,

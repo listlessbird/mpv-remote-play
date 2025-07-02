@@ -124,3 +124,10 @@ export interface TracksResponse {
   audioTrack: TrackInfo
   subtitleTrack: TrackInfo | boolean
 }
+
+export interface HLSStreamStatus {
+  status: "ready" | "generating" | "not_found"
+  segmentCount: number
+  playlistUrl: string
+  mediaFile: string
+}

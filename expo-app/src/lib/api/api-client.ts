@@ -1,4 +1,5 @@
 import type {
+  HLSStreamStatus,
   MPVInstance,
   MPVResponse,
   RemoteCommand,
@@ -115,6 +116,12 @@ class ApiClient {
     return this.request<{ message: string }>(`/api/instances/${instanceId}`, {
       method: "DELETE",
     })
+  }
+
+  async getHLSStatus(instanceId: string): Promise<HLSStreamStatus> {
+    return this.request<HLSStreamStatus>(
+      `/api/instances/${instanceId}/hls/status`
+    )
   }
 
   async discover() {
