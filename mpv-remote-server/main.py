@@ -93,38 +93,63 @@ async def create_instance(body: Dict = {}):
     all_instances = await mpv_manager.get_all_instances()
     running_instances = [i for i in all_instances if i.status == "running"]
 
+    # Explicitly deny multiple instances - always return the first running instance
     if running_instances:
         running_instance_id = running_instances[0].id
+        logger.info(
+            f"Instance creation denied - reusing existing instance {running_instance_id}"
+        )
 
+        # If there are multiple running instances, log warning but still return the first one
+        if len(running_instances) > 1:
+            logger.warning(
+                f"Found {len(running_instances)} running instances, should clean up extras"
+            )
+
+        # Optionally load new media file if provided
         if media_file is not None:
             try:
                 await mpv_manager.send_command(
                     running_instance_id,
                     MPVCommand(command=["loadfile", media_file], **{}),
                 )
-                return {
-                    "instanceId": running_instance_id,
-                    "message": "Reused existing MPV instance",
-                }
+                logger.info(f"Loaded media file {media_file} into existing instance")
             except Exception as error:
-                logger.error(f"Failed to send command to existing instance: {error}")
-                logger.info("Creating new instance")
-        else:
-            return {
-                "instanceId": running_instance_id,
-                "message": "Reused existing MPV instance",
-            }
+                logger.error(
+                    f"Failed to load media file into existing instance: {error}"
+                )
 
+        return {
+            "instanceId": running_instance_id,
+            "message": "Instance creation denied - reusing existing instance",
+        }
+
+    # Only create new instance if no running instances exist
     try:
         instance_id = await mpv_manager.create_instance(
             media_file, stream_audio=stream_audio
         )
+        logger.info(f"Created new instance {instance_id}")
         return {
             "instanceId": instance_id,
             "message": "MPV instance created successfully, streamAudio: "
             + str(stream_audio),
         }
     except Exception as error:
+        error_msg = str(error)
+        if "another instance is already running" in error_msg:
+            logger.warning(
+                f"Instance creation rejected due to existing instance: {error}"
+            )
+            # This should not happen due to our checks above, but just in case
+            all_instances = await mpv_manager.get_all_instances()
+            running_instances = [i for i in all_instances if i.status == "running"]
+            if running_instances:
+                return {
+                    "instanceId": running_instances[0].id,
+                    "message": "Instance creation rejected - reusing existing instance",
+                }
+
         raise HTTPException(
             status_code=500, detail=f"Failed to create instance: {error}"
         )

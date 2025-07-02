@@ -36,6 +36,7 @@ class MPVManager:
     def __init__(self):
         self.instances: dict[str, MPVInstance] = {}
         self.request_count = 0
+        self._creation_lock = asyncio.Lock()
         logger.info("MPVManager initialized")
 
     async def create_instance(
@@ -43,91 +44,109 @@ class MPVManager:
         media_file: Optional[str] = None,
         stream_audio: bool = False,
     ) -> str:
-        instance_id = str(uuid.uuid4())
-        pipe_name = f"mpvsocket_{instance_id}"
-
-        if sys.platform == "win32":
-            pipe_address = f"\\\\.\\pipe\\{pipe_name}"
-        else:
-            pipe_address = f"/tmp/{pipe_name}"
-
-        logger.info(f"Creating MPV instance {instance_id} with pipe {pipe_name}")
-        if media_file:
-            logger.info(f"Loading media file: {media_file}")
-
-        instance = MPVInstance(
-            id=instance_id,
-            pipeName=pipe_name,
-            status=MPVStatus.STARTING,
-            lastSeen=datetime.now(),
-            process=None,
-            clientName=None,
-        )
-
-        self.instances[instance_id] = instance
-
-        try:
-            args = [
-                "mpv",
-                "--player-operation-mode=pseudo-gui",
-                "--idle=yes",
-                "--force-window=yes",
-                "--sub-auto=fuzzy",
-                "--slang=en,eng",
-                f"--input-ipc-server={pipe_address}",
+        async with self._creation_lock:
+            # Double-check for running instances inside the lock
+            running_instances = [
+                inst
+                for inst in self.instances.values()
+                if inst.status == MPVStatus.RUNNING
             ]
 
-            if stream_audio:
-                args.append("--ao=null")
+            if running_instances:
+                logger.warning(
+                    f"Instance creation blocked - found {len(running_instances)} running instances"
+                )
+                raise Exception(
+                    "Cannot create instance - another instance is already running"
+                )
 
+            instance_id = str(uuid.uuid4())
+            pipe_name = f"mpvsocket_{instance_id}"
+
+            if sys.platform == "win32":
+                pipe_address = f"\\\\.\\pipe\\{pipe_name}"
+            else:
+                pipe_address = f"/tmp/{pipe_name}"
+
+            logger.info(f"Creating MPV instance {instance_id} with pipe {pipe_name}")
             if media_file:
-                args.append(media_file)
+                logger.info(f"Loading media file: {media_file}")
 
-            logger.debug(f"Starting MPV with args: {args}")
-            process = subprocess.Popen(
-                args,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+            instance = MPVInstance(
+                id=instance_id,
+                pipeName=pipe_name,
+                status=MPVStatus.STARTING,
+                lastSeen=datetime.now(),
+                process=None,
+                clientName=None,
             )
 
-            instance.process = process
-            logger.debug(f"MPV process started with PID: {process.pid}")
-
-            await asyncio.sleep(2.0)
+            self.instances[instance_id] = instance
 
             try:
-                logger.debug(f"Testing IPC connection for instance {instance_id}")
-                await self.send_command(
-                    instance_id,
-                    MPVCommand(
-                        command=["get_property", "mpv-version"], **{"async": None}
-                    ),
-                    allow_starting=True,
+                args = [
+                    "mpv",
+                    "--player-operation-mode=pseudo-gui",
+                    "--idle=yes",
+                    "--force-window=yes",
+                    "--sub-auto=fuzzy",
+                    "--slang=en,eng",
+                    f"--input-ipc-server={pipe_address}",
+                ]
+
+                if stream_audio:
+                    args.append("--ao=null")
+
+                if media_file:
+                    args.append(media_file)
+
+                logger.debug(f"Starting MPV with args: {args}")
+                process = subprocess.Popen(
+                    args,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                 )
-                instance.status = MPVStatus.RUNNING
-                logger.info(f"MPV instance {instance_id} is now running")
+
+                instance.process = process
+                logger.debug(f"MPV process started with PID: {process.pid}")
+
+                await asyncio.sleep(2.0)
+
+                try:
+                    logger.debug(f"Testing IPC connection for instance {instance_id}")
+                    await self.send_command(
+                        instance_id,
+                        MPVCommand(
+                            command=["get_property", "mpv-version"], **{"async": None}
+                        ),
+                        allow_starting=True,
+                    )
+                    instance.status = MPVStatus.RUNNING
+                    logger.info(f"MPV instance {instance_id} is now running")
+                except Exception as e:
+                    instance.status = MPVStatus.ERROR
+                    logger.error(
+                        f"IPC connection failed for instance {instance_id}: {e}"
+                    )
+                    raise Exception("MPV Started but IPC failed")
+
+                if stream_audio and media_file:
+                    from services.hls_stream import hls_stream_service
+
+                    asyncio.create_task(
+                        hls_stream_service.start_stream(instance_id, media_file)
+                    )
+
+                asyncio.create_task(self._monitor_process(instance_id, process))
+                asyncio.create_task(self._clean_dead_instances())
+
+                return instance_id
+
             except Exception as e:
                 instance.status = MPVStatus.ERROR
-                logger.error(f"IPC connection failed for instance {instance_id}: {e}")
-                raise Exception("MPV Started but IPC failed")
-
-            if stream_audio and media_file:
-                from services.hls_stream import hls_stream_service
-
-                asyncio.create_task(
-                    hls_stream_service.start_stream(instance_id, media_file)
-                )
-
-            asyncio.create_task(self._monitor_process(instance_id, process))
-            asyncio.create_task(self._clean_dead_instances())
-
-            return instance_id
-
-        except Exception as e:
-            instance.status = MPVStatus.ERROR
-            logger.error(f"Failed to create MPV instance {instance_id}: {e}")
-            raise e
+                logger.error(f"Failed to create MPV instance {instance_id}: {e}")
+                raise e
 
     async def _monitor_process(self, instance_id: str, process: subprocess.Popen):
         logger.debug(f"Starting process monitor for instance {instance_id}")
